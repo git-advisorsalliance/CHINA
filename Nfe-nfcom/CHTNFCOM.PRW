@@ -7,7 +7,8 @@
 
 static oQry	:= nil
 
-CLASS PrtDanfeCom
+CLASS PrtNFCom
+
 	Data oPrinter
 	Data cPathPDF
 	Data nDevice
@@ -64,6 +65,7 @@ CLASS PrtDanfeCom
 	Method SetInfCPL()                  // Método para o rodapé e informações complementares
 	Method GetXML()                     // Método para fazer o parser do xml
 	Method impIt()                      // Método para imprimir o conteudo dos itens.
+	Method ImpItPart()                  // Método para imprimir os valores impostos Partilha não Medidos.  MAC 17.12.2025
 	Method ItemBox()                    // Método para o box dos itens
 	Method AddFormattedMessage()        // Método para Tratar as msg que vão no infcpl
 	Method AddComplementaryMessages()   // Método para Tratar as msg que vão no infcpl
@@ -75,6 +77,7 @@ CLASS PrtDanfeCom
 ENDCLASS
 
 Static Function TSSDANFECOM(aXmlNfcom, oDanfcom, cIdEnt, nVias, cAmbiente)
+
 	Local oDanfe    := Nil
 	Local lSuccess  := .F.
 
@@ -101,13 +104,15 @@ Static Function TSSDANFECOM(aXmlNfcom, oDanfcom, cIdEnt, nVias, cAmbiente)
 
 Return lSuccess
 
-Method New(cPathPDF, cFilePrint, nDevice, lBuffer) CLASS PrtDanfeCom
+
+Method New(cPathPDF, cFilePrint, nDevice, lBuffer) CLASS PrtNFCom
+
 	local cBarDe := "\"
 	local cBarPara := "/"
 
 	Default cPathPDF    := "\SPOOL\"
 	Default lBuffer     := .T.
-	Default cFilePrint  := "danfecom_"+Dtos(MSDate())+StrTran(Time(),":","")
+	Default cFilePrint  := 	"danfecom_"+Dtos(MSDate())+StrTran(Time(),":","")   // "danfecom_"+Dtos(MSDate())+StrTran(Time(),":","")
 	Default nDevice     := IMP_PDF
 
 	If !issrvunix() //Windows
@@ -133,12 +138,14 @@ Method New(cPathPDF, cFilePrint, nDevice, lBuffer) CLASS PrtDanfeCom
 	Self:MAXMSG     := 20
 	Self:MAXONLYMSG := 40
 	Self:nTotItsPag := 15
-
-	Self:oPrinter := FWMSPrinter():New(Self:cFilePrint, Self:nDevice /*,.F., Self:cPathPDF, .T.,,,,,,,,,,lBuffer*/)
+	Self:oPrinter := FWMSPrinter():New(Self:cFilePrint, Self:nDevice,,Self:cPathPDF,.T.,,,,.T.,,,.F.,,,lBuffer)
 	Self:ConfigurePrinter()
+
 Return Self
 
-Method ConfigurePrinter() CLASS PrtDanfeCom
+
+Method ConfigurePrinter() CLASS PrtNFCom
+
 	Self:oPrinter:lServer      := .T.
 	Self:oPrinter:lPDFAsPNG    := .T.
 	Self:oPrinter:SetResolution(78)
@@ -146,10 +153,13 @@ Method ConfigurePrinter() CLASS PrtDanfeCom
 	Self:oPrinter:SetPaperSize(DMPAPER_A4)
 	Self:oPrinter:SetMargin(60, 60, 60, 60)
 	Self:oPrinter:SetViewPDF(.T.)
-	//Self:oPrinter:Setup()
+	// Self:oPrinter:Setup()
+
 Return
 
-Method GetFonts() CLASS PrtDanfeCom
+
+Method GetFonts() CLASS PrtNFCom
+
 	Self:oFont07    := TFontEx():New(Self:oPrinter,"Times New Roman",06,06,.F.,.T.,.F.)// 3
 	Self:oFont08    := TFontEx():New(Self:oPrinter,"Times New Roman",07,07,.F.,.T.,.F.)// 4
 	Self:oFont09    := TFontEx():New(Self:oPrinter,"Times New Roman",08,08,.F.,.T.,.F.)// 7
@@ -163,9 +173,10 @@ Method GetFonts() CLASS PrtDanfeCom
 	Self:oFont12N   := TFontEx():New(Self:oPrinter,"Times New Roman",12,12,.T.,.T.,.F.)// 11
 	Self:oFont18N   := TFontEx():New(Self:oPrinter,"Times New Roman",18,18,.T.,.T.,.F.)// 12
 	Self:oFont14N   := TFontEx():New(Self:oPrinter,"Times New Roman",14,14,.T.,.T.,.F.)// 14
+
 Return Self
 
-Method ProcessXML(aXmlNfcom, nVias, cIdEnt, cAmbiente) CLASS PrtDanfeCom
+Method ProcessXML(aXmlNfcom, nVias, cIdEnt, cAmbiente) CLASS PrtNFCom
 	Local aNfcomObjects := {}
 	Local nX            := 0
 	Local lImprimiu     := .F.
@@ -196,7 +207,7 @@ Method ProcessXML(aXmlNfcom, nVias, cIdEnt, cAmbiente) CLASS PrtDanfeCom
 
 Return lImprimiu
 
-Method ValidateXML(aXmlNfcom) CLASS PrtDanfeCom
+Method ValidateXML(aXmlNfcom) CLASS PrtNFCom
 	Local aNfcomObjects := {}
 	Local aXML          := {}
 	Local nX            := 0
@@ -240,7 +251,7 @@ Method ValidateXML(aXmlNfcom) CLASS PrtDanfeCom
 
 Return aNfcomObjects
 
-Method PrintDetails(oXmlData, nVias, cIdEnt) CLASS PrtDanfeCom
+Method PrintDetails(oXmlData, nVias, cIdEnt) CLASS PrtNFCom
 	Private oNF        := oXmlData:_NFCOM
 	Private oEmitente  := oNF:_INFNFCOM:_Emit
 	Private oIdent     := oNF:_INFNFCOM:_IDE
@@ -269,11 +280,18 @@ Method PrintDetails(oXmlData, nVias, cIdEnt) CLASS PrtDanfeCom
 
 Return Self
 
-Method SetTotal(oTotal) CLASS PrtDanfeCom
+Method SetTotal(oTotal) CLASS PrtNFCom
     local nLiTit    := 2185
     local nLinInfo  := 2205
 
     Default oTotal := Nil
+
+	// --------- Soma imposto partilha na base e no Valor do ICMS - (Partilha) MAC 15.12.2025
+	cQuery := "SELECT F2_BRICMS, F2_ICMSRET FROM "+RetSqlName("SF2")+" WHERE F2_DOC = '"+StrZero(Val(oIdent:_NNF:Text),9)+"' "
+	cQuery += " AND F2_SERIE ='"+Padr(oIdent:_SERIE:Text,TamSx3("F2_SERIE")[1])+"' AND D_E_L_E_T_ = '' "
+	cQuery := ChangeQuery(cQuery)
+ 
+	cAlias := MPSysOpenQuery(cQuery)
 
     Self:aTotais := Array(15)
     AFill(Self:aTotais, 0)
@@ -315,49 +333,52 @@ Method SetTotal(oTotal) CLASS PrtDanfeCom
     Self:oPrinter:Say(2150,010,"INFORMAÇÕES DOS TRIBUTOS/TOTAIS",Self:oFont10N:oFont)
 
     Self:oPrinter:Box(2160,000,2230,612)
-    Self:oPrinter:Say(nLiTit,015,"PIS (R$)",Self:oFont10N:oFont)
-    Self:oPrinter:Say(nLinInfo,015,Transform(Self:aTotais[06],"@e 9,999,999,999,999.99"),Self:oFont10:oFont)
+    Self:oPrinter:Say(nLiTit,015,"PIS (R$)",Self:oFont08N:oFont)
+    Self:oPrinter:Say(nLinInfo,015,Transform(Self:aTotais[06],"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
 
     Self:oPrinter:Box(2160,611,2230,1212)
-    Self:oPrinter:Say(nLiTit,626,"COFINS (R$)",Self:oFont10N:oFont)
-    Self:oPrinter:Say(nLinInfo,626,Transform(Self:aTotais[05],"@e 9,999,999,999,999.99"),Self:oFont10:oFont)
+    Self:oPrinter:Say(nLiTit,626,"COFINS (R$)",Self:oFont08N:oFont)
+    Self:oPrinter:Say(nLinInfo,626,Transform(Self:aTotais[05],"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
 
     Self:oPrinter:Box(2160,1211,2230,1813)
-    Self:oPrinter:Say(nLiTit,1226,"FUST (R$)",Self:oFont10N:oFont)
-    Self:oPrinter:Say(nLinInfo,1226,Transform(Self:aTotais[08],"@e 9,999,999,999,999.99"),Self:oFont10:oFont)
+    Self:oPrinter:Say(nLiTit,1226,"FUST (R$)",Self:oFont08N:oFont)
+    Self:oPrinter:Say(nLinInfo,1226,Transform(Self:aTotais[08],"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
 
     Self:oPrinter:Box(2160,1812,2230,2450)
-    Self:oPrinter:Say(nLiTit,1827,"FUNTTEL (R$)",Self:oFont10N:oFont)
-    Self:oPrinter:Say(nLinInfo,1827,Transform(Self:aTotais[07],"@e 9,999,999,999,999.99"),Self:oFont10:oFont)
+    Self:oPrinter:Say(nLiTit,1827,"FUNTTEL (R$)",Self:oFont08N:oFont)
+    Self:oPrinter:Say(nLinInfo,1827,Transform(Self:aTotais[07],"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
 
     // BOX TOTAIS
 
     nLiTit := 2250
     nLinInfo := 2270
     Self:oPrinter:Box(2225,000,2295,490)
-    Self:oPrinter:Say(nLiTit,015,"VALOR TOTAL NFF (R$)",Self:oFont10N:oFont)
-    Self:oPrinter:Say(nLinInfo,015,Transform(Self:aTotais[15],"@e 9,999,999,999,999.99"),Self:oFont10:oFont)
+    Self:oPrinter:Say(nLiTit,015,"VALOR TOTAL NFF (R$)",Self:oFont08N:oFont)
+    Self:oPrinter:Say(nLinInfo,015,Transform(Self:aTotais[15],"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
 
     Self:oPrinter:Box(2225,489,2295,980)
-    Self:oPrinter:Say(nLiTit,504,"TOTAL BASE DE CÁLCULO (R$)",Self:oFont10N:oFont)
-    Self:oPrinter:Say(nLinInfo,504, Transform(Self:aTotais[01],"@e 9,999,999,999,999.99"),Self:oFont10:oFont)
+    Self:oPrinter:Say(nLiTit,504,"TOTAL BASE DE CÁLCULO (R$)",Self:oFont08N:oFont)
+    // Self:oPrinter:Say(nLinInfo,504, Transform(Self:aTotais[01],"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
+	 Self:oPrinter:Say(nLinInfo,504, Transform((Self:aTotais[01]+(cAlias)->F2_BRICMS),"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
 
     Self:oPrinter:Box(2225,979,2295,1470)
-    Self:oPrinter:Say(nLiTit,994,"VALOR ICMS (R$)",Self:oFont10N:oFont)
-    Self:oPrinter:Say(nLinInfo,994,Transform(Self:aTotais[02],"@e 9,999,999,999,999.99"),Self:oFont10:oFont)
+    Self:oPrinter:Say(nLiTit,994,"VALOR ICMS (R$)",Self:oFont08N:oFont)
+    // Self:oPrinter:Say(nLinInfo,994,Transform(Self:aTotais[02],"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
+	 Self:oPrinter:Say(nLinInfo,994,Transform((Self:aTotais[02]+(cAlias)->F2_ICMSRET),"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
 
     Self:oPrinter:Box(2225,1469,2295,1960)
-    Self:oPrinter:Say(nLiTit,1484,"VALOR OUTROS (R$)",Self:oFont10N:oFont)
-    Self:oPrinter:Say(nLinInfo,1484,Transform(Self:aTotais[14],"@e 9,999,999,999,999.99"),Self:oFont10:oFont)
+    Self:oPrinter:Say(nLiTit,1484,"VALOR OUTROS (R$)",Self:oFont08N:oFont)
+    Self:oPrinter:Say(nLinInfo,1484,Transform(Self:aTotais[14],"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
 
 
     Self:oPrinter:Box(2225,1959,2295,2452)
-    Self:oPrinter:Say(nLiTit,1974,"VALOR ISENTO (R$)",Self:oFont10N:oFont)
-    Self:oPrinter:Say(nLinInfo,1974,Transform(0,"@e 9,999,999,999,999.99"),Self:oFont10:oFont)
+    Self:oPrinter:Say(nLiTit,1974,"VALOR ISENTO (R$)",Self:oFont08N:oFont)
+    Self:oPrinter:Say(nLinInfo,1974,Transform(0,"@e 9,999,999,999,999.99"),Self:oFont08:oFont)
 
 Return Self
 
-Method SetHeader(oEmitente) CLASS PrtDanfeCom
+Method SetHeader(oEmitente) CLASS PrtNFCom
+
 	Local cLogo       := FisxLogo("1")
 
 	Default oEmitente := Nil
@@ -368,13 +389,14 @@ Method SetHeader(oEmitente) CLASS PrtDanfeCom
 	Self:oPrinter:SayBitmap(20,40,cLogo,270,220)
 	Self:oPrinter:Say(050, 370, "DOCUMENTO AUXILIAR DA NOTA FISCAL FATURA DE SERVIÇOS DE COMUNICAÇÃO ELETRÔNICA",Self:oFont14N:oFont)	//"Identificação do emitente"
 	Self:oPrinter:Say(100, 370, "RAZÃO SOCIAL: " + AllTrim(oEmitente:_xNome:Text),Self:oFont14N:oFont) //Razão social
-	Self:oPrinter:Say(150, 370, "ENDEREÇO: " + AllTrim(oEmitente:_EnderEmit:_xLgr:Text)+", "+AllTrim(oEmitente:_EnderEmit:_Nro:Text),Self:oFont14N:oFont) //Endereço
-	Self:oPrinter:Say(200, 370, "CNPJ: " + oEmitente:_CNPJ:Text,Self:oFont14N:oFont) //CNPJ
-	Self:oPrinter:Say(250, 370, "IE: " + If(Type("oEmitente:_IE") <> "U", oEmitente:_IE:TEXT, ""),Self:oFont14N:oFont) //IE
+	Self:oPrinter:Say(150, 370, "ENDEREÇO: " + AllTrim(oEmitente:_EnderEmit:_xLgr:Text)+", "+AllTrim(oEmitente:_EnderEmit:_Nro:Text)+"  "+AllTrim(oEmitente:_EnderEmit:_xCpl:Text),Self:oFont14N:oFont) // Endereço
+	Self:oPrinter:Say(200, 370, "CNPJ: " + TransForm(oEmitente:_CNPJ:Text,"@!R NN.NNN.NNN/NNNN-99"),Self:oFont14N:oFont) // CNPJ
+	// Self:oPrinter:Say(200, 370, "CNPJ: " +    oEmitente:_CNPJ:Text      ,Self:oFont14N:oFont) //CNPJ	
+	Self:oPrinter:Say(250, 370, "IE: " + If(Type("oEmitente:_IE") <> "U", oEmitente:_IE:TEXT, ""),Self:oFont14N:oFont) // IE
 
 Return Self
 
-Method SetNFCom(oIdent, oNF, nFolha, nFolhas) CLASS PrtDanfeCom
+Method SetNFCom(oIdent, oNF, nFolha, nFolhas) CLASS PrtNFCom
 	Local cQrCode   := ""
 
 	Default oIdent  := Nil
@@ -398,7 +420,7 @@ Method SetNFCom(oIdent, oNF, nFolha, nFolhas) CLASS PrtDanfeCom
 	Self:oPrinter:Say(550,370, "FOLHA: "+ StrZero(nFolha,2)+"/"+StrZero(nFolhas,2),Self:oFont14:oFont)
 Return Self
 
-Method SetChvAcesso(oNF) CLASS PrtDanfeCom
+Method SetChvAcesso(oNF) CLASS PrtNFCom
 	Default oNF := Nil
 
 	Self:oPrinter:Box(605, 000, 970, 1200)  // Novo box com início abaixo do box anterior
@@ -409,12 +431,10 @@ Method SetChvAcesso(oNF) CLASS PrtDanfeCom
 	Self:oPrinter:Say(940, 040, "Protocolo de Autorização: " + Self:cAutoriza + " - " + Self:dDataAt, Self:oFont14N:oFont)	//"Identificação do emitente"
 Return Self
 
-Method SetDest(oDestino, oIdent) CLASS PrtDanfeCom
-	Local cCnpj   	:= Space(14)
-	Local aDest	  	:= {}
-	Local aLinesEnd := {}
-	Local nLinhaY 	:= 1090
-	Local nI		:= 0
+Method SetDest(oDestino, oIdent) CLASS PrtNFCom
+
+	Local cCnpj := Space(14)
+	Local aDest	:= {}
 
 	Default oDestino	:= Nil
 	Default oIdent		:= Nil
@@ -440,13 +460,11 @@ Method SetDest(oDestino, oIdent) CLASS PrtDanfeCom
 
 						Self:oPrinter:Say(1050,040, cAux,Self:oFont14N:oFont)
 
-						cAux := aDest[01] + " - " + aDest[02] + ", " + aDest[05] + " - " + aDest[07] + ", CEP: " + aDest[03]
-						aLinesEnd := WrapText( cAux, 54)
+						cAux := aDest[01] + " - " + aDest[02] // + " - " + aDest[03] + " - " + aDest[05]
+						cAux := SubStr(cAux, 1, 40)
 
-						For nI := 1 To Min(Len(aLinesEnd), 3)
-							Self:oPrinter:Say(nLinhaY, 060, aLinesEnd[nI], Self:oFont14N:oFont)
-							nLinhaY += 40
-						Next
+						Self:oPrinter:Say(1090,040,cAux,Self:oFont14N:oFont)
+						Self:oPrinter:Say(1130,040,aDest[03]+" - "+aDest[05],Self:oFont14N:oFont)
 
 						Do Case
 						Case Type("oDestino:_CNPJ") == "O"
@@ -459,7 +477,7 @@ Method SetDest(oDestino, oIdent) CLASS PrtDanfeCom
 						Self:oPrinter:Say(1270, 040, "IE: " + aDest[08], Self:oFont14N:oFont)
 						Return Self
 
-Method SetAssinante(oAssinante, oFatura) CLASS PrtDanfeCom
+Method SetAssinante(oAssinante, oFatura) CLASS PrtNFCom
 	Local nFontSize	:= 0
 	Local cTexto    := ""
 	Local cDataIni  := ""
@@ -473,7 +491,7 @@ Method SetAssinante(oAssinante, oFatura) CLASS PrtDanfeCom
 	Self:oPrinter:Box(280, 1210, 335, 2450)
 
 	If Type("oFatura:_CompetFat") <> "U"
-		cTexto := oFatura:_CompetFat:TEXT
+		cTexto := LEFT(oFatura:_CompetFat:TEXT,2)+"/"+RIGHT(oFatura:_CompetFat:TEXT,4)
 	EndIf
 
 	Self:oPrinter:Say(320,1250, "REFERÊNCIA: " + cTexto,Self:oFont14N:oFont)
@@ -509,10 +527,10 @@ Method SetAssinante(oAssinante, oFatura) CLASS PrtDanfeCom
 	Self:oPrinter:Box(610, 1210, 670, 2450)
 
 	If Type("oFatura:_codDebAuto") <> "U"
-		cTexto := oFatura:_codDebAuto:TEXT
+		cTexto := " "  // oFatura:_codDebAuto:TEXT
 	EndIf
 
-	Self:oPrinter:Say(650, 1250, "Nº IDENTI. DÉBITO AUTOMÁTICO: " + cTexto,Self:oFont14N:oFont)
+	Self:oPrinter:Say(650, 1250, "Nº IDENT. DÉBITO AUTOMÁTICO: " + cTexto,Self:oFont14N:oFont)
 
 	Self:oPrinter:Box(685,1210,835,2450)
 	nFontSize := 32
@@ -529,7 +547,7 @@ Method SetAssinante(oAssinante, oFatura) CLASS PrtDanfeCom
 
 Return Self
 
-Method SetContrib(oDestino, oIdent) CLASS PrtDanfeCom
+Method SetContrib(oDestino, oIdent) CLASS PrtNFCom
     Default oDestino := Nil
     Default oIdent   := Nil
 
@@ -538,7 +556,7 @@ Method SetContrib(oDestino, oIdent) CLASS PrtDanfeCom
 
 Return Self
 
-Method SetPrint(oDestino, oIdent) CLASS PrtDanfeCom
+Method SetPrint(oDestino, oIdent) CLASS PrtNFCom
 	Local nItemInicial      := 1
 	Local nFolha            := 0
 	Local nTotalItens       := Len(oDet)
@@ -567,7 +585,7 @@ Method SetPrint(oDestino, oIdent) CLASS PrtDanfeCom
 
 Return Self
 
-Method ItemBox(nPosItem, nPosUni, nPosQuant, nPosUnit, nPosTotal, nPosBcIcm, nPosICMS, nPosAliq, nPosPis) CLASS PrtDanfeCom
+Method ItemBox(nPosItem, nPosUni, nPosQuant, nPosUnit, nPosTotal, nPosBcIcm, nPosICMS, nPosAliq, nPosPis) CLASS PrtNFCom
 
 	Default nPosItem := 0
 	Default nPosUni  := 0
@@ -587,69 +605,72 @@ Method ItemBox(nPosItem, nPosUni, nPosQuant, nPosUnit, nPosTotal, nPosBcIcm, nPo
     nEspacamento    := 700
     nLimiteBox      := nPosHorIni+nEspacamento
     Self:oPrinter:Box(nPosVertIni, nPosHorIni, nTamVert, nLimiteBox)
-    Self:oPrinter:Say(1480,nPosHorIni+10,"ITEM DA FATURA",Self:oFont10N:oFont)
+    Self:oPrinter:Say(1480,nPosHorIni+10,"ITEM DA FATURA",Self:oFont08N:oFont)
     nPosItem := nPosHorIni+10
 
     nPosHorIni      := nLimiteBox
     nEspacamento    := 150
     nLimiteBox      := nPosHorIni+nEspacamento
     Self:oPrinter:Box(nPosVertIni, nPosHorIni, nTamVert, nLimiteBox)
-    Self:oPrinter:Say(1480,nPosHorIni+10,"UN",Self:oFont10N:oFont)
+    Self:oPrinter:Say(1480,nPosHorIni+10,"UN",Self:oFont08N:oFont)
     nPosUni := nPosHorIni+10
 
     nPosHorIni      := nLimiteBox
     nEspacamento    := 200
     nLimiteBox      := nPosHorIni+nEspacamento
     Self:oPrinter:Box(nPosVertIni, nPosHorIni, nTamVert, nLimiteBox)
-    Self:oPrinter:Say(1480,nPosHorIni+10,"QUANT",Self:oFont10N:oFont)
+    Self:oPrinter:Say(1480,nPosHorIni+10,"QUANT",Self:oFont08N:oFont)
     nPosQuant := nPosHorIni+10
     
     nPosHorIni      := nLimiteBox
     nEspacamento    := 300
     nLimiteBox      := nPosHorIni+nEspacamento
     Self:oPrinter:Box(nPosVertIni,nPosHorIni,nTamVert, nLimiteBox)
-    Self:oPrinter:Say(1480,nPosHorIni+10,"PREÇO UNIT (R$)",Self:oFont10N:oFont)
+    Self:oPrinter:Say(1480,nPosHorIni+10,"PREÇO UNIT (R$)",Self:oFont08N:oFont)
     nPosUnit := nPosHorIni+10
 
     nPosHorIni      := nLimiteBox
     nEspacamento    := 300
     nLimiteBox      := nPosHorIni+nEspacamento
     Self:oPrinter:Box(nPosVertIni,nPosHorIni-10,nTamVert, nLimiteBox)
-    Self:oPrinter:Say(1480,nPosHorIni,"VALOR TOTAL (R$)",Self:oFont10N:oFont)
+    Self:oPrinter:Say(1480,nPosHorIni,"VALOR TOTAL (R$)",Self:oFont08N:oFont)
     nPosTotal := nPosHorIni
 
     nPosHorIni      := nLimiteBox
     nEspacamento    := 250
     nLimiteBox      := nPosHorIni+nEspacamento
     Self:oPrinter:Box(nPosVertIni,nPosHorIni,nTamVert, nLimiteBox)
-    Self:oPrinter:Say(1480,nPosHorIni+10,"PIS/COFINS (R$)",Self:oFont10N:oFont)
+    Self:oPrinter:Say(1480,nPosHorIni+10,"PIS/COFINS (R$)",Self:oFont08N:oFont)
     nPosPis := nPosHorIni+10
 
     nPosHorIni      := nLimiteBox
     nEspacamento    := 200
     nLimiteBox      := nPosHorIni+nEspacamento
     Self:oPrinter:Box(nPosVertIni,nPosHorIni,nTamVert, nLimiteBox)
-    Self:oPrinter:Say(1480,nPosHorIni+10,"BC.ICMS (R$)",Self:oFont10N:oFont)
+    Self:oPrinter:Say(1480,nPosHorIni+10,"BC.ICMS (R$)",Self:oFont08N:oFont)
     nPosBcIcm := nPosHorIni+10
 
     nPosHorIni      := nLimiteBox
     nEspacamento    := 80
     nLimiteBox      := nPosHorIni+nEspacamento
     Self:oPrinter:Box(nPosVertIni,nPosHorIni-10,nTamVert, nLimiteBox)
-    Self:oPrinter:Say(1480,nPosHorIni,"ALIQ",Self:oFont10N:oFont)
+    Self:oPrinter:Say(1480,nPosHorIni,"ALIQ",Self:oFont08N:oFont)
     nPosAliq := nPosHorIni
 
     nPosHorIni      := nLimiteBox
     nEspacamento    := 270
     nLimiteBox      := nPosHorIni+nEspacamento
-    Self:oPrinter:Box(nPosVertIni,nPosHorIni-5,nTamVert, nLimiteBox)
-    Self:oPrinter:Say(1480,nPosHorIni,"VALOR ICMS (R$)",Self:oFont10N:oFont)
+    Self:oPrinter:Box(nPosVertIni,nPosHorIni-10,nTamVert, nLimiteBox)
+    Self:oPrinter:Say(1480,nPosHorIni,"VALOR ICMS (R$)",Self:oFont08N:oFont)
     nPosICMS := nPosHorIni
 
 Return Self
 
-Method impIt(aItem, nNroLinhatem, nPosItem, nPosUni, nPosQuant, nPosUnit, nPosTotal, nPosBcIcm, nPosICMS, nPosAliq, nPosPis, aTributos) CLASS PrtDanfeCom
+Method impIt(aItem, nNroLinhatem, nPosItem, nPosUni, nPosQuant, nPosUnit, nPosTotal, nPosBcIcm, nPosICMS, nPosAliq, nPosPis, aTributos) CLASS PrtNFCom
+
 	local cProd := allTrim(aItem:_PROD:_XPROD:TEXT)
+	Local cQuery as character
+	Local cAlias as character
 
 	Default aItem        := {}
 	Default nNroLinhatem := 0
@@ -664,18 +685,71 @@ Method impIt(aItem, nNroLinhatem, nPosItem, nPosUni, nPosQuant, nPosUnit, nPosTo
 	Default nPosPis      := 0
 	Default aTributos    := {}
 
-	Self:oPrinter:Say(nNroLinhatem+20,nPosItem,SubStr(cProd, 1, MaxCod(cProd, 500)),Self:oFont10:oFont)
-	Self:oPrinter:Say(nNroLinhatem+20,nPosUni,getUnMed(AllTrim(aItem:_PROD:_UMED:TEXT)),Self:oFont10:oFont)
-	Self:oPrinter:Say(nNroLinhatem+20,nPosQuant,AllTrim(Transform(Val(aItem:_PROD:_qFaturada:TEXT),"@e 99,999,999,999.9999")),Self:oFont10:oFont)
-	Self:oPrinter:Say(nNroLinhatem+20,nPosUnit,AllTrim(Transform(Val(aItem:_PROD:_vItem:TEXT),"@e 9,999,999,999,999.99")),Self:oFont10:oFont)
-	Self:oPrinter:Say(nNroLinhatem+20,nPosTotal,AllTrim(Transform(Val(aItem:_PROD:_vProd:TEXT),"@e 9,999,999,999,999.99")),Self:oFont10:oFont)
-	Self:oPrinter:Say(nNroLinhatem+20,nPosBcIcm,Alltrim(Transform(aTributos[1][1], "@e 9,999,999,999,999.99")),Self:oFont10:oFont)
-	Self:oPrinter:Say(nNroLinhatem+20,nPosICMS,Alltrim(Transform(aTributos[1][2], "@e 9,999,999,999,999.99")),Self:oFont10:oFont)
-	Self:oPrinter:Say(nNroLinhatem+20,nPosAliq,Alltrim(Transform(aTributos[1][3], "@e 999.99")),Self:oFont10:oFont)
-	Self:oPrinter:Say(nNroLinhatem+20,nPosPis,AllTrim(Transform(Val(aItem:_PROD:_qFaturada:TEXT),"@e 99,999,999,999.9999")),Self:oFont10:oFont)
+	// --------- Complemento da Descrição. MAC 01.12.2025
+	cQuery := "SELECT C6_P_DESI, C6_P_CAP FROM "+RetSqlName("SC6")+" WHERE C6_NOTA = '"+StrZero(Val(oNF:_INFNFCOM:_ide:_NNf:Text),9)+"' "
+	cQuery += " AND C6_SERIE ='"+Padr(oNF:_INFNFCOM:_ide:_Serie:Text,TamSx3("F3_SERIE")[1])+"' AND C6_ITEM = '"+StrZero(Val(aItem:_nItem:Text),2) +"' AND D_E_L_E_T_ = '' "
+	cQuery := ChangeQuery(cQuery)
+ 
+	cAlias := MPSysOpenQuery(cQuery)
+
+	// Verifica se o XML esta com a Descricao Correta CTB - MAC 17.12.2025
+	If !(AllTrim((cAlias)->C6_P_DESI)$cProd) 
+		cProd += " - "+AllTrim((cAlias)->C6_P_DESI)+If(!EMPTY((cAlias)->C6_P_CAP)," - "+Alltrim((cAlias)->C6_P_CAP),"")
+	EndIf	
+
+	(cAlias)->(DbCloseArea())
+
+	Self:oPrinter:SayAlign(nNroLinhatem, nPosItem,  SubStr(cProd, 1, MaxCod(cProd, 500)), Self:oFont08:oFont, 800, 10,, 0)
+	Self:oPrinter:SayAlign(nNroLinhatem, nPosUni,   getUnMed(allTrim(aItem:_PROD:_UMED:TEXT)), Self:oFont08:oFont, 20, 10, , 0)
+	Self:oPrinter:SayAlign(nNroLinhatem, nPosQuant, AllTrim(Transform(Val(aItem:_PROD:_qFaturada:TEXT),"@e 99,999,999,999.9999")),Self:oFont08:oFont, 60, 10, , 0)
+	Self:oPrinter:SayAlign(nNroLinhatem, nPosUnit,  AllTrim(Transform(Val(aItem:_PROD:_vItem:TEXT),"@e 9,999,999,999,999.99")), Self:oFont08:oFont, 100, 10, , 0)
+	Self:oPrinter:SayAlign(nNroLinhatem, nPosTotal, AllTrim(Transform(Val(aItem:_PROD:_vProd:TEXT),"@e 9,999,999,999,999.99")), Self:oFont08:oFont, 80, 10, , 0)
+	Self:oPrinter:SayAlign(nNroLinhatem, nPosBcIcm, Alltrim(Transform(aTributos[1][1], "@e 9,999,999,999,999.99")), Self:oFont08:oFont, 100, 10, , 0)
+	Self:oPrinter:SayAlign(nNroLinhatem, nPosICMS,	Alltrim(Transform(aTributos[1][2], "@e 9,999,999,999,999.99")), Self:oFont08:oFont, 100, 10, , 0)
+	Self:oPrinter:SayAlign(nNroLinhatem, nPosAliq,	Alltrim(Transform(aTributos[1][3], "@e 999.99")), Self:oFont08:oFont, 100, 10, , 0)
+	Self:oPrinter:SayAlign(nNroLinhatem, nPosPis,	Alltrim(Transform(aTributos[1][4], "@e 9,999,999,999,999.99")), Self:oFont08:oFont, 1000, 10, , 0)
+
 return
 
-Method ProcessItems(oDet, oNF) CLASS PrtDanfeCom
+
+/*/{Protheus.doc} ImpItPart
+Metodo p/ Imprimir linha quando possui Partilha de Impostos - Não Medidos
+@author Marcos Cavalaro (MAC)
+@since 17/12/2025
+/*/
+Method ImpItPart(aItem, nLinha, nPosBcIcm, nPosICMS, nPosAliq) CLASS PrtNFCom
+
+	Local cQuery as character
+	Local cAlias as character
+
+	Default aItem        := {}
+	Default nLinha 		:= 0
+	Default nPosBcIcm    := 0
+	Default nPosICMS     := 0
+	Default nPosAliq     := 0
+
+	// --------- 2a linha do imposto (Partilha) MAC 15.12.2025
+	cQuery := "SELECT D2_BRICMS, D2_ICMSRET, D2_ALIQSOL FROM "+RetSqlName("SD2")+" WHERE D2_DOC = '"+StrZero(Val(oNF:_INFNFCOM:_ide:_NNf:Text),9)+"' "
+	cQuery += " AND D2_SERIE ='"+Padr(oNF:_INFNFCOM:_ide:_Serie:Text,TamSx3("D2_SERIE")[1])+"' AND D2_ITEM = '"+StrZero(Val(aItem:_nItem:Text),2) +"' AND D_E_L_E_T_ = '' "
+	cQuery := ChangeQuery(cQuery)
+ 
+	cAlias := MPSysOpenQuery(cQuery)
+
+	If (cAlias)->D2_BRICMS > 0
+
+		Self:oPrinter:SayAlign(nLinha, nPosBcIcm, Alltrim(Transform((cAlias)->D2_BRICMS , "@e 9,999,999,999,999.99")), Self:oFont08:oFont, 100, 10, , 0)
+		Self:oPrinter:SayAlign(nLinha, nPosICMS,	Alltrim(Transform((cAlias)->D2_ICMSRET, "@e 9,999,999,999,999.99")), Self:oFont08:oFont, 100, 10, , 0)
+		Self:oPrinter:SayAlign(nLinha, nPosAliq,	Alltrim(Transform((cAlias)->D2_ALIQSOL, "@e 999.99")), Self:oFont08:oFont, 100, 10, , 0)
+		nLinha += 15
+
+	EndIf
+
+	(cAlias)->(DbCloseArea())
+
+return nLinha
+
+
+Method ProcessItems(oDet, oNF) CLASS PrtNFCom
 	Local nY            := 0
 	Local nLenSit       := 0
 	Local aTributos     := {}
@@ -702,7 +776,7 @@ Method ProcessItems(oDet, oNF) CLASS PrtDanfeCom
 
 Return aTributos
 
-Method ProcessImp(oImposto, cTaxCode, nBaseICM, nValICM, nPICM, nPis, nCof) CLASS PrtDanfeCom
+Method ProcessImp(oImposto, cTaxCode, nBaseICM, nValICM, nPICM, nPis, nCof) CLASS PrtNFCom
 	Default oImposto := {}
 	Default cTaxCode := ""
 	Default nBaseICM := 0
@@ -734,62 +808,61 @@ Method ProcessImp(oImposto, cTaxCode, nBaseICM, nValICM, nPICM, nPis, nCof) CLAS
 	EndIf
 Return
 
-Method SetInfCPL(oIdent, oNF, nLinIni, lOnlyMsg) CLASS PrtDanfeCom
+Method SetInfCPL(oIdent, oNF, nLinIni, lOnlyMsg) CLASS PrtNFCom
+    Local nLenMensagens := 0
     Local nX            := 1
     Local nLin          := 0
+    Local nTem          := 0
+    Local nQtdLinMsg    := 0
     Local aResFisco     := {}
     Local aMsgRet       := {}
-	Local cMsg          := ""
-	Local nInicioL	    := 1
-	Local nFimL 	    := 68
-	Local nLinhasQtd	:= 0
 
     Default oIdent := Nil
     Default oNF    := Nil
     Default nLinIni := 2300
     Default lOnlyMsg := .F.
 
+    //Informações complementares
+
     Self:oPrinter:Box(nLinIni,000,2980,1550)
-    Self:oPrinter:Say(nLinIni + 20,020,"INFORMAÇÕES COMPLEMENTARES",Self:oFont10N:oFont)
+    Self:oPrinter:Say(nLinIni + 20,010,"INFORMAÇÕES COMPLEMENTARES",Self:oFont08N:oFont)
 
     Self:oPrinter:Box(nLinIni,1550,2980,2452)
-    Self:oPrinter:Say(nLinIni + 20,1570,"RESERVADO AO FISCO",Self:oFont10N:oFont)
+    Self:oPrinter:Say(nLinIni + 20,1560,"RESERVADO AO FISCO",Self:oFont08N:oFont)
 
-	//"INFORMAÇÕES COMPLEMENTARES"
     nLin            := nLinIni + 50
-	If !Empty(Self:aMessages) .And. Len(Self:aMessages) > 0
-		nLinhasQtd := Ceiling(Len(Self:aMessages[1]) / nFimL) //Calcula a quantidade de linhas necessárias para impressao
-		While nX <= nLinhasQtd .And. nX <= 32
-			cMsg := SubStr(Self:aMessages[1],nInicioL,nFimL)
-			Self:oPrinter:Say(nLin,020,cMsg,Self:oFont10:oFont)
-			nLin := nLin + 20
-			nInicioL += nFimL
-			nX ++
-		EndDo
-	EndIf
+    nQtdLinMsg      := Self:MAXMSG
+    if lOnlyMsg
+        nQtdLinMsg := self:MAXONLYMSG
+    endIf
+	
+    nTem            := Min(Len(Self:aMessages), nQtdLinMsg)
+	
+	//"INFORMAÇÕES COMPLEMENTARES"
+    While nX <= nTem .And. Len(Self:aMessages) > 0
+        Self:oPrinter:Say(nLin,005,Substr(Self:aMessages[nX],1,130),Self:oFont08:oFont)
+        nLin:= nLin+15
+        nX++
+    EndDo
+	
 	//"RESERVADO AO FISCO"
     If !Empty(Self:cRetMsg)
-		aMsgRet := StrTokArr( Self:cRetMsg, "|")
-		aEval( aMsgRet, {|x| aadd( aResFisco, alltrim(x) ) } )
-
-		nInicioL	    := 1
-		nFimL 	   		:= 38
-		nLinhasQtd 		:= Ceiling(Len(aResFisco[1]) / nFimL) //Calcula a quantidade de linhas necessárias para impressao
-		nX 				:= 1
-		nLin            := nLinIni + 50
-
-		While nX <= nLinhasQtd .And. nX <= 32
-			cMsg := SubStr(aResFisco[1],nInicioL,nFimL)
-			Self:oPrinter:Say(nLin,1570,cMsg,Self:oFont10:oFont)
-			nLin := nLin + 20
-			nInicioL += nFimL
-			nX ++
-		EndDo
+        aMsgRet := StrTokArr( Self:cRetMsg, "|")
+        aEval( aMsgRet, {|x| aadd( aResFisco, alltrim(x) ) } )
     endif
+
+    nLenMensagens   := Len(aResFisco)
+    nLin            := nLinIni + 50
+
+    For nX := 1 To Min(nLenMensagens, Self:MAXMSG)
+        Self:oPrinter:Say(nLin,1560,Substr(aResFisco[nX],1,70),Self:oFont08:oFont)
+        nLin:= nLin+15
+    Next
 
 Return
 
-Method SetItens(nItemInicial,nTotalItens) CLASS PrtDanfeCom
+Method SetItens(nItemInicial,nTotalItens) CLASS PrtNFCom
+
 	local nPosItem          := 0
 	local nPosUni           := 0
 	local nPosQuant         := 0
@@ -811,25 +884,31 @@ Method SetItens(nItemInicial,nTotalItens) CLASS PrtDanfeCom
 
 	// // Itera pelos itens na página atual
 	For nI := nItemInicial To nItemFinal
+
 		Self:impIt(oDet[nI], nNroLinhatem, nPosItem, nPosUni, nPosQuant, nPosUnit, nPosTotal, nPosBcIcm, nPosICMS, nPosAliq, nPosPis, Self:ProcessItems(oDet[nI], oNF)) //Imprime linha de item
-		nNroLinhatem += 25
+		nNroLinhatem += 15
+
+		nNroLinhatem:= Self:ImpItPart(oDet[nI], nNroLinhatem, nPosBcIcm, nPosICMS, nPosAliq, Self:ProcessItems(oDet[nI], oNF)) // Imprime linha de Partilha Imposto
+
 	Next
 
 Return nItemFinal
 
-Method SetAnatel() CLASS PrtDanfeCom
+
+Method SetAnatel() CLASS PrtNFCom
 
     Self:oPrinter:Box(3000, 000, 3210, 2452) // Caixa para resumo
     Self:oPrinter:Say(3050,700, "ÁREA CONTRIBUINTE E DETERMINAÇÕES DA ANATEL: ",Self:oFont14N:oFont)
     
 Return
 
-Method Finalize() CLASS PrtDanfeCom
+
+Method Finalize() CLASS PrtNFCom
 	fwFreeObj(Self:oPrinter)
 	Self:oPrinter := Nil
 Return
 
-Method AddFormattedMessage(cMessage) CLASS PrtDanfeCom
+Method AddFormattedMessage(cMessage) CLASS PrtNFCom
 	Local cAux := cMessage
 
 	IF !Empty(cAux)
@@ -838,7 +917,7 @@ Method AddFormattedMessage(cMessage) CLASS PrtDanfeCom
 
 Return
 
-Method AddComplementaryMessages(oIdent, oNF) CLASS PrtDanfeCom
+Method AddComplementaryMessages(oIdent, oNF) CLASS PrtNFCom
 	Local cInfComp  := ""
 	Local aMsgComp := {}
 	Local nX		:= 0
@@ -874,7 +953,7 @@ Method AddComplementaryMessages(oIdent, oNF) CLASS PrtDanfeCom
 	EndIf
 Return
 
-Method CalculateTotalFolhas(nTotalItens) CLASS PrtDanfeCom
+Method CalculateTotalFolhas(nTotalItens) CLASS PrtNFCom
 	Local nItensPorPagina       := Self:nTotItsPag
 	Local nMsgPorPagina         := self:MAXMSG
 	Local nMsgRestantes         := Len(Self:aMessages)
@@ -902,13 +981,13 @@ Method CalculateTotalFolhas(nTotalItens) CLASS PrtDanfeCom
 
 Return nTotItfolhas + nTotMsgFolhas
 
-Method SetMarca() CLASS PrtDanfeCom
+Method SetMarca() CLASS PrtNFCom
 	If AllTrim(cAmb) == "2"
 		Self:oPrinter:Say(1200,350,"DANFECOM EMITIDO EM AMBIENTE DE HOMOLOGAÇÃO - SEM VALOR FISCAL",Self:oFont18N:oFont,2000,Self:nCor,030)
 	EndIf
 Return Self
 
-Method GetXML(aNFe,cErro) CLASS PrtDanfeCom
+Method GetXML(aNFe,cErro) CLASS PrtNFCom
 	Local cRetorno   := ""
 	Local cProtocolo := ""
 	Local aRetorno   := {}
@@ -916,14 +995,12 @@ Method GetXML(aNFe,cErro) CLASS PrtDanfeCom
 	Local cDtHrRec1	 := ""
 	Local nDtHrRec1  := 0
 	Local cAviso	:= ""
+	Local cXMsg		:= ""
 	local cXmlDoc	:= ""
-	Local cXmlUni	:= ""
     Local dDataAt   := CToD("  /  /   ")
-	Local cXmlFisco	:= ""
 
 	Private oDHRecbto
 	Private oXmlProt
-	Private oXmlFisco
 
 	Default aNFe	:= {}
 	Default	cErro	:=	""
@@ -939,11 +1016,11 @@ Method GetXML(aNFe,cErro) CLASS PrtDanfeCom
 				If Type("oXmlProt:_PROTNFCOM:_INFPROT:_NPROT") <> "U"
 					cProtocolo := oXmlProt:_PROTNFCOM:_INFPROT:_NPROT:TEXT
 				EndIf
-			EndIf
-			cXmlUni 	:= aNFe[01]
-			oXmlFisco	:= XmlParser(cXmlUni,"_",@cErro,@cAviso)
-			If Type("oXmlFisco:_NFCOM:_INFNFCOM:_INFADIC:_INFADFISCO:TEXT") <> "U" .And. !Empty(oXmlFisco:_NFCOM:_INFNFCOM:_INFADIC:_INFADFISCO:TEXT)
-				cXmlFisco	:= oXmlFisco:_NFCOM:_INFNFCOM:_INFADIC:_INFADFISCO:TEXT
+
+				If Type("oXmlProt:_PROTNFCOM:_INFPROT:_XMOTIVO") <> "U"
+					cXMsg := oXmlProt:_PROTNFCOM:_INFPROT:_XMOTIVO:TEXT
+				EndIf
+
 			EndIf
 		endif
 
@@ -969,7 +1046,7 @@ Method GetXML(aNFe,cErro) CLASS PrtDanfeCom
 		Aadd(aRetorno,cDtHrRec1)
 		Aadd(aRetorno,"")
 		Aadd(aRetorno,dDataAt)
-		Aadd(aRetorno,cXmlFisco)
+		Aadd(aRetorno,cXMsg)
 
 	EndIf
 
@@ -1001,6 +1078,8 @@ static function getUnMed(cUmed)
 
 return cUnidade
 
+
+/*  MAC
 User Function PrtNfcom(	cIdEnt, cAmb )
 
 	Local lRet		:= .T.
@@ -1015,6 +1094,7 @@ User Function PrtNfcom(	cIdEnt, cAmb )
     RPTStatus( {|lEnd| &cProg.(@lEnd, cIDEnt, cAmb)}, STR0015 )
 
 Return lRet
+*/
 
 /*/
 ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
@@ -1038,7 +1118,7 @@ Return lRet
 ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
 /*/
 
-User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
+User Function CHTNFCOM( lEnd, cIdEnt, cAmbiente )
 
     Local aAreaSF3   := {}
     Local aNotas     := {}
@@ -1053,44 +1133,49 @@ User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
     
     local lPossuiNota	:= .F.
 	Local cPathPDF    := SuperGetMV('MV_RELT',,"\SPOOL\")
-	Local aPergs	:= {}
-	Local cdeNfcom 	:= Space(TamSx3("F3_NFISCAL")[1])
-	Local cateNfcom := Space(TamSx3("F3_NFISCAL")[1])
-	Local cdaSerie 	:= Space(TamSx3("F3_SERIE")[1])
-	Local ctpOP		:= "1"
-	Local dDataDe	:= FirstDate(Date())
-	Local dDataAte	:= LastDate(Date())
+	// Local aPergs	:= {}
+	// Local cdeNfcom 	:= Space(TamSx3("F3_NFISCAL")[1])
+	// Local cateNfcom := Space(TamSx3("F3_NFISCAL")[1])
+	// Local cdaSerie 	:= Space(TamSx3("F3_SERIE")[1])
+	// Local ctpOP		:= "1"
+	// Local dDataDe	:= FirstDate(Date())
+	// Local dDataAte	:= LastDate(Date())
 
-	Default cIdEnt	    := ""
-	Default lBuffer	    := .T.
-	Default cFilePrint  := "danfecom_"+Dtos(MSDate())+StrTran(Time(),":","")
+	Default cIdEnt	    	:= ""
+	Default lBuffer	   := .T.
+	Default cFilePrint   := "danfecom_"+AllTrim(SF2->F2_SERIE)+AllTrim(SF2->F2_DOC)	// "danfecom_"+Dtos(MSDate())+StrTran(Time(),":","")
 	Default nDevice		:= IMP_PDF
 	Default cAmbiente	:= "2"
 	Default nVias		:= 1
-    Default lEnd		:= .F.
-    Default lIsLoja		:= .F.
-    Default nTipo		:= 0
+   Default lEnd		:= .F.
+   Default lIsLoja	:= .F.
+   Default nTipo		:= 0
 
-	oDanfcom    := PrtDanfeCom():New(cPathPDF, cFilePrint, nDevice, lBuffer)
+	oDanfcom    := PrtNFCom():New(cPathPDF, cFilePrint, nDevice, lBuffer)
 
-	If oDanfcom:oPrinter:NMODALRESULT == 1 // Se o usuário cancelar a impressão
-		aAdd(aPergs, {1, STR0001			, cdeNfcom	,  ""							, ".T.", "", ".T.", 80,  .F.})
-		aAdd(aPergs, {1, STR0002			, cateNfcom	,  ""							, ".T.", "", ".T.", 80,  .T.})
-		aAdd(aPergs, {1, STR0003			, cdaSerie	,  ""							, ".T.", "", ".T.", 80,  .T.})
-		aAdd(aPergs, {2, STR0004 			, ctpOP		,  {STR0005,STR0006}, 80   , ".T.", .T.})
-		aAdd(aPergs, {1, STR0007			, dDataDe	,  ""							, ".T.", "", ".T.", 80,  .T.})
-		aAdd(aPergs, {1, STR0008			, dDataAte	,  ""							, ".T.", "", ".T.", 80,  .T.})
+	// If oDanfcom:oPrinter:NMODALRESULT == 1 // Se o usuário cancelar a impressão
 
-		ParamBox( aPergs, STR0009 )
+		// aAdd(aPergs, {1, STR0001			, cdeNfcom	,  ""							, ".T.", "", ".T.", 80,  .F.})
+		// aAdd(aPergs, {1, STR0002			, cateNfcom	,  ""							, ".T.", "", ".T.", 80,  .T.})
+		// aAdd(aPergs, {1, STR0003			, cdaSerie	,  ""							, ".T.", "", ".T.", 80,  .T.})
+		// aAdd(aPergs, {2, STR0004 			, ctpOP		,  {STR0005,STR0006}, 80   , ".T.", .T.})
+		// aAdd(aPergs, {1, STR0007			, dDataDe	,  ""							, ".T.", "", ".T.", 80,  .T.})
+		// aAdd(aPergs, {1, STR0008			, dDataAte	,  ""							, ".T.", "", ".T.", 80,  .T.})
+
+		// ParamBox( aPergs, STR0009 ) MAC
 		
-		MV_PAR01 := AllTrim(MV_PAR01)
-		MV_PAR02 := AllTrim(MV_PAR02)
-		MV_PAR04 := Val(MV_PAR04)
+		MV_PAR01 := SF2->F2_DOC  		// AllTrim(MV_PAR01) MAC
+		MV_PAR02 := SF2->F2_DOC		   // AllTrim(MV_PAR02) MAC
+		MV_PAR04 := 1 						// Val(MV_PAR04) MAC
+
+		MV_PAR03 := SF2->F2_SERIE	
+		MV_PAR05 := SF2->F2_EMISSAO 	
+		MV_PAR06 := SF2->F2_EMISSAO 	
 
 		If !lImpDir .or. MV_PAR04 == 0 // Caso impressão de DANFCOM seja realizada via AutoDistMail 
 			dbSelectArea("SF3")
 			dbSetOrder(5)
-			cSerie := Padr(MV_PAR03,TamSx3("F3_SERIE")[1])
+			cSerie := SF2->F2_SERIE		 // Padr(MV_PAR03,TamSx3("F3_SERIE")[1]) MAC
 
 			lQuery    := .T.
 
@@ -1098,11 +1183,6 @@ User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
 			//³Campos que serao adicionados a query somente se existirem na base³
 			//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
 			
-			
-			
-			
-			
-
 			If oQry == nil
 				cQry := "SELECT F3_FILIAL,F3_ENTRADA,F3_NFELETR,F3_CFO,F3_FORMUL,F3_NFISCAL,F3_SERIE,F3_CLIEFOR,F3_LOJA,F3_ESPECIE,F3_DTCANC "
 				cQry += "FROM " + RetSqlName('SF3') + " "
@@ -1142,12 +1222,8 @@ User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
 			oQry:GetFixQuery()
 			cAliasSF3 := oQry:OpenAlias()
 			
-			
-			
-			
 			cSerId := (cAliasSF3)->F3_SERIE
 			
-
 			While !Eof() .And. xFilial("SF3") == (cAliasSF3)->F3_FILIAL .And.;
 				cSerId == MV_PAR03 .And.;
 				(cAliasSF3)->F3_NFISCAL >= MV_PAR01 .And.;
@@ -1180,12 +1256,8 @@ User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
 				dbSelectArea(cAliasSF3)
 				dbSkip()
 
-				
-				
-				
 				cSerId := (cAliasSF3)->F3_SERIE
 				
-
 				If lEnd
 					Exit
 				EndIf
@@ -1220,10 +1292,11 @@ User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
 			DBClearFilter()
 			Ferase(cIndex+OrdBagExt())
 		endif
-	EndIf
+	// EndIf
 	fwFreeObj(oDanfcom)
 	oDanfcom := Nil
-Return .T.
+
+Return (cFilePrint+".pdf")
 
 //-----------------------------------------------------------------------
 /*/{Protheus.doc} executeRetorna
@@ -1432,41 +1505,3 @@ Static Function MaxCod(cString, nTamanho)
 	Next
 
 	Return nMax
-
-//-----------------------------------------------------------------------
-/*/{Protheus.doc} WrapText
-Executa o retorna de notas
-
-@author Felipe Duarte Luna
-@since 13/12/2025
-@version 1.0
-
-@param  cID ID da nota que sera retornado
-
-@return aRetorno   Array com do Endereço quebrado em linhas, quando atinge o limite de caracteres informados
-/*/
-//-----------------------------------------------------------------------
-Static Function WrapText(cText, nLimit)
-    Local aLines := {}
-    Local cLinha := ""
-    Local aPalavras := StrTokArr(AllTrim(cText), " ")
-    Local nI
-
-    For nI := 1 To Len(aPalavras)
-        If (Len(cLinha) + Len(aPalavras[nI]) + 1) <= nLimit
-            If Empty(cLinha)
-                cLinha := aPalavras[nI]
-            Else
-                cLinha := cLinha + " " + aPalavras[nI]
-            EndIf
-        Else
-            AAdd(aLines, cLinha)
-            cLinha := aPalavras[nI]
-        EndIf
-    Next
-
-    If !Empty(cLinha)
-        AAdd(aLines, cLinha)
-    EndIf
-
-Return aLines

@@ -1,0 +1,10 @@
+# Backups e copias de trabalho - nao versionar
+*.bak
+*.bak_*
+
+# Copias antigas mantidas ao lado do fonte bom (prefixo _)
+_*.prw
+_*.PRW
+
+# Pastas de comparacao/merge manual
+merge/

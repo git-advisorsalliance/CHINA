@@ -3,9 +3,10 @@
 #INCLUDE "COLORS.CH"
 #INCLUDE "RPTDEF.CH"
 #INCLUDE "FWPrintSetup.ch"
-#INCLUDE "danfcom.ch"
 
-static oQry	:= nil
+static oQry			:= nil
+static lgetErpId	:= nil
+static lspedTSSID	:= nil
 
 CLASS PrtDanfeCom
 	Data oPrinter
@@ -93,7 +94,7 @@ Static Function TSSDANFECOM(aXmlNfcom, oDanfcom, cIdEnt, nVias, cAmbiente)
 	If lSuccess
 		oDanfe:oPrinter:Preview()
 	Else
-    	Aviso(STR0010,STR0011,{STR0012},3)
+    	Aviso("DANFECOM","Nenhuma NFCom a ser impressa nos parametros utilizados.",{"Ok"},3)
 	EndIf
 
 	// Finalizar e liberar recursos
@@ -231,7 +232,7 @@ Method ValidateXML(aXmlNfcom) CLASS PrtDanfeCom
 		EndIf
 
 		if !empty(cMsgError)
-			Aviso(STR0010,STR0013+ Self:cFilePrint + STR0014 + cMsgError,{STR0012},3)
+			Aviso("DANFECOM","As seguintes notas não foram impressas: Arquivo: "+ Self:cFilePrint + " Motivo: " + cMsgError,{"Ok"},3)
 		endIf
 
 		aXML := fwfreearray(aXML)
@@ -1012,7 +1013,7 @@ User Function PrtNfcom(	cIdEnt, cAmb )
 		cProg := "DANFCOMPrc"
 	EndIf
 
-    RPTStatus( {|lEnd| &cProg.(@lEnd, cIDEnt, cAmb)}, STR0015 )
+    RPTStatus( {|lEnd| &cProg.(@lEnd, cIDEnt, cAmb)}, "Imprimindo DANFCOM..." )
 
 Return lRet
 
@@ -1074,14 +1075,14 @@ User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
 	oDanfcom    := PrtDanfeCom():New(cPathPDF, cFilePrint, nDevice, lBuffer)
 
 	If oDanfcom:oPrinter:NMODALRESULT == 1 // Se o usuário cancelar a impressão
-		aAdd(aPergs, {1, STR0001			, cdeNfcom	,  ""							, ".T.", "", ".T.", 80,  .F.})
-		aAdd(aPergs, {1, STR0002			, cateNfcom	,  ""							, ".T.", "", ".T.", 80,  .T.})
-		aAdd(aPergs, {1, STR0003			, cdaSerie	,  ""							, ".T.", "", ".T.", 80,  .T.})
-		aAdd(aPergs, {2, STR0004 			, ctpOP		,  {STR0005,STR0006}, 80   , ".T.", .T.})
-		aAdd(aPergs, {1, STR0007			, dDataDe	,  ""							, ".T.", "", ".T.", 80,  .T.})
-		aAdd(aPergs, {1, STR0008			, dDataAte	,  ""							, ".T.", "", ".T.", 80,  .T.})
+		aAdd(aPergs, {1, "NFCom De"			, cdeNfcom	,  ""							, ".T.", "", ".T.", 80,  .F.})
+		aAdd(aPergs, {1, "NFCom Até"		, cateNfcom	,  ""							, ".T.", "", ".T.", 80,  .T.})
+		aAdd(aPergs, {1, "Série"			, cdaSerie	,  ""							, ".T.", "", ".T.", 80,  .T.})
+		aAdd(aPergs, {2, "Tipo de Operação"	, ctpOP		,  {"1=NF.Saída","2=NF.Entrada"}, 80   , ".T.", .T.})
+		aAdd(aPergs, {1, "Data De"			, dDataDe	,  ""							, ".T.", "", ".T.", 80,  .T.})
+		aAdd(aPergs, {1, "Data Até"			, dDataAte	,  ""							, ".T.", "", ".T.", 80,  .T.})
 
-		ParamBox( aPergs, STR0009 )
+		ParamBox( aPergs, "Parâmetros" )
 		
 		MV_PAR01 := AllTrim(MV_PAR01)
 		MV_PAR02 := AllTrim(MV_PAR02)
@@ -1207,7 +1208,7 @@ User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
 			EndDo
 
 			If !lPossuiNota
-				Aviso(STR0010,STR0011,{STR0012},3)
+				Aviso("DANFECOM","Nenhuma NFCom a ser impressa nos parametros utilizados.",{"Ok"},3)
 			EndIf
 
 		EndIf
@@ -1259,6 +1260,7 @@ static function executeRetorna( aNfe, cIdEnt, lUsacolab, lJob)
     Local cRetorno		:= ""
     Local cURL			:= PadR(GetNewPar("MV_SPEDURL","http://localhost:8080/sped"),250)
     Local cCodStat		:= ""
+	local cIdERP		:= ""
     Local dDtRecib		:= CToD("")
     Local nDtHrRec1		:= 0
     Local nX			:= 0
@@ -1288,7 +1290,7 @@ static function executeRetorna( aNfe, cIdEnt, lUsacolab, lJob)
 	aadd(aRetorno,{"","",aIdNfe[nZ][4]+aIdNfe[nZ][5]/*//*,"","","",CToD(""),"","","",""*/})
 
 	aadd(oWS:oWSNFEID:oWSNotas:oWSNFESID2,NFESBRA_NFESID2():New())
-	Atail(oWS:oWSNFEID:oWSNotas:oWSNFESID2):cID := aIdNfe[nZ][4]+aIdNfe[nZ][5]
+	Atail(oWS:oWSNFEID:oWSNotas:oWSNFESID2):cID := getIdTSS(aIdNfe[nZ][4]+aIdNfe[nZ][5], aIdNfe[nZ][4], aIdNfe[nZ][5], aIdNfe[nZ][6], aIdNfe[nZ][7], aIdNfe[nZ][2], /*cEspecie*/, /*lTransmissao*/, .T.)
 
 	If oWS:RETORNANOTAS()
 
@@ -1325,10 +1327,11 @@ static function executeRetorna( aNfe, cIdEnt, lUsacolab, lJob)
 					EndIf
 				EndIf
 
-				nY := aScan(aIdNfe,{|x| x[4] + x[5] == SubStr(oWs:oWSRETORNANOTASRESULT:OWSNOTAS:OWSNFES3[nX]:CID,1,LEN(aIdNfe[nZ][4]+aIdNfe[nZ][5]))})
+				cIdERP := getERPID(oWs:oWSRETORNANOTASRESULT:OWSNOTAS:OWSNFES3[nX]:CID, "62")[1]
+				nY := aScan(aIdNfe,{|x| x[4]+x[5] == cIdERP})
 
-				oWS:cIdInicial    := aIdNfe[nZ][4]+aIdNfe[nZ][5]
-				oWS:cIdFinal      := aIdNfe[nZ][4]+aIdNfe[nZ][5]
+				oWS:cIdInicial    := allTrim(oWs:oWSRETORNANOTASRESULT:OWSNOTAS:OWSNFES3[nX]:CID)
+				oWS:cIdFinal      := allTrim(oWs:oWSRETORNANOTASRESULT:OWSNOTAS:OWSNFES3[nX]:CID)
 				If oWS:MONITORFAIXA()
 					nPos    := 0
 					aWsErro := {}
@@ -1470,3 +1473,68 @@ Static Function WrapText(cText, nLimit)
     EndIf
 
 Return aLines
+
+
+/*/{Protheus.doc} getIdTSS
+Funcao para obter o IDTSS para integração com TSS, caso o método de obtenção do IDTSS esteja disponível a função irá retornar o IDTSS, 
+caso contrário irá retornar o cID recebido como parâmetro
+@type function
+@version 12.1.2510
+@author fs.martinez
+@since 3/31/2026
+@return character, ID utilizado para integração com TSS, caso o método de obtenção do IDTSS esteja disponível a função irá retornar o IDTSS, 
+caso contrário irá retornar o cID recebido como parâmetro
+/*/
+static function getIdTSS(cID, cSerie, cDoc, cClifor, cLoja, cTipo, cEspecie, lTransmissao, lMonitor)
+	local cIDTSS 		:= ""
+
+	default cID 		:= ""
+	default cSerie 		:= ""
+	default cDoc 		:= ""
+	default cClifor 	:= ""
+	default cLoja 		:= ""
+	default cTipo 		:= "S"
+	default cEspecie	:= "NFCOM"
+	default lTransmissao:= .F.
+	default lMonitor	:= .F.
+	
+	cIDTSS := cID
+	if lspedTSSID == nil
+		lspedTSSID := existFunc("spedTSSID")
+	endIf
+	if lspedTSSID
+		cIDTSS := spedTSSID(cID, cSerie, cDoc, cClifor, cLoja, cTipo, cEspecie, "62", "NFCOM", lTransmissao, lMonitor)
+	endIf
+
+return cIDTSS
+
+/*/{Protheus.doc} getERPID
+Retorna os dados do ERP com base no ID do TSS
+@type function
+@version 12.1.2510
+@author fs.martinez
+@since 4/30/2026
+@param cIDTSS, character, ID do TSS
+@param cModelo, character, Modelo do documento
+@return array, Array com 3 posicoes: [1]-ID do TSS, Serie do documento, Numero do documento
+/*/
+static function getERPID(cIDTSS, cModelo)
+	local aRet			:= {}
+	local cSerieERP 	:= ""
+	local cDocERP 		:= ""
+	local nSerTam		:= 3
+	local nDocTam		:= 9
+
+	if lgetErpId == nil
+		lgetErpId := tlpp.ffunc("totvs.protheus.backoffice.fiscal.tss.util.integration.getErpId")
+	endIf
+	if lgetErpId
+		aRet := totvs.protheus.backoffice.fiscal.tss.util.integration.getErpId(cIDTSS, cModelo)
+	else
+		//TODO: compatibilidade com legado - remover apos 12.1.2410 não tiver mais garantia estendida
+		cSerieERP	:= padr(subStr(cIDTSS, 1, nSerTam), nSerTam)
+		cDocERP		:= padr(allTrim(subStr(cIDTSS, nSerTam+1)), nDocTam)
+		aRet		:= {cSerieERP+cDocERP, cSerieERP, cDocERP}
+	endIf
+
+return aRet

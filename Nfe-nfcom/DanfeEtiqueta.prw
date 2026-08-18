@@ -480,8 +480,8 @@ static function DanfeSimp(oPrinter, nPosY, nPosX, oFontTit, oFontInf, aEmit, aNf
     // Box Chave de acesso
     oPrinter:Box( 50 + nPosY, 30 + nPosX, 120 + nPosY, 270 + nPosX, "-4")
     oPrinter:Say( 65 + nPosY, 35 + nPosX, cChAces, oFontTit)
-    oPrinter:Say( 110 + nPosY, 50 + nPosX, Transform(aNfe[1],"@R 9999 9999 9999 9999 9999 9999 9999 9999 9999 9999 9999"), oFontInf)
-    oPrinter:Code128c( 100 + nPosY, 40 + nPosX, aNfe[1], 30)
+    oPrinter:Say( 110 + nPosY, 50 + nPosX, Transform(aNfe[1],"@R XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX"), oFontInf)
+    oPrinter:Code128b( 100 + nPosY, 32 + nPosX, aNfe[1], 17)
 
     // Box Protocolo de Autorizacao
     oPrinter:Box( 120 + nPosY, 30 + nPosX, 135 + nPosY, 270 + nPosX, "-4")
@@ -509,7 +509,7 @@ static function DanfeSimp(oPrinter, nPosY, nPosX, oFontTit, oFontInf, aEmit, aNf
         oPrinter:Say( 161 + nPosY, 200 + nPosX, Transform(aEmit[2],"@R 999.999.999-99"), oFontInf)
     else
         oPrinter:Say( 161 + nPosY, 175 + nPosX, cCnpj, oFontTit)
-        oPrinter:Say( 161 + nPosY, 200 + nPosX, Transform(aEmit[2],"@R 99.999.999/9999-99"), oFontInf)
+        oPrinter:Say( 161 + nPosY, 200 + nPosX, Transform(aEmit[2],"@R! AA.AAA.AAA/AAAA-AA"), oFontInf)
     endif
     oPrinter:Say( 169 + nPosY, 80 + nPosX, cUFTxt, oFontTit)
     oPrinter:Say( 169 + nPosY, 100 + nPosX, aEmit[4], oFontInf)
@@ -550,7 +550,7 @@ static function DanfeSimp(oPrinter, nPosY, nPosX, oFontTit, oFontInf, aEmit, aNf
         oPrinter:Say( 244 + nPosY, 200 + nPosX, Transform(aDest[2], "@R 999.999.999-99"), oFontInf)
     else
         oPrinter:Say( 244 + nPosY, 175 + nPosX, cCnpj, oFontTit)
-        oPrinter:Say( 244 + nPosY, 200 + nPosX, Transform(aDest[2], "@R 99.999.999/9999-99"), oFontInf)
+        oPrinter:Say( 244 + nPosY, 200 + nPosX, Transform(aDest[2], "@R! AA.AAA.AAA/AAAA-AA"), oFontInf)
     endif
     oPrinter:Say( 252 + nPosY, 35 + nPosX, cUFTxt, oFontTit)
     oPrinter:Say( 252 + nPosY, 55 + nPosX, aDest[4], oFontInf)
@@ -672,7 +672,7 @@ static function impZebra(aNFe, aEmit, aDest)
     lNomeDest := nTamDest > nMaxNome //Se quantidade de caracteres da razão social do destinatário for maior que o permitido para a primeira linha lNomeDest := T
 
     //Criação dos campos de textos variáveis da etiqueta
-    MSCBSay(09, 39, transform( aNFe[nChave], "@R 9999 9999 9999 9999 9999 9999 9999 9999 9999 9999 9999" ), "N", "A", cFontMenor)
+    MSCBSay(09, 39, transform( aNFe[nChave], "@R XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX" ), "N", "A", cFontMenor)
 
     if !lProtEPEC
         MSCBSay(38.75, 53.75, aNFe[nProtocolo], "N", "A", cFontMenor)
@@ -688,7 +688,7 @@ static function impZebra(aNFe, aEmit, aDest)
     endIf
 
     if lEmitJurid
-        MSCBSay(15, 66.25, transform( aEmit[nCNPJ], "@R 99.999.999/9999-99" ), "N", "A", cFontMenor) //Emitente pessoa jurídica
+        MSCBSay(15, 66.25, transform( aEmit[nCNPJ], "@R! AA.AAA.AAA/AAAA-AA" ), "N", "A", cFontMenor) //Emitente pessoa jurídica
     else
         MSCBSay(15, 66.25, transform( aEmit[nCNPJ], "@R 999.999.999-99" ), "N", "A", cFontMenor) //Emitente pessoa física
     endIf
@@ -708,7 +708,7 @@ static function impZebra(aNFe, aEmit, aDest)
     endIf
 
     if lDestJurid
-        MSCBSay(15, 120, transform( aDest[nCNPJ], "@R 99.999.999/9999-99" ), "N", "A", cFontMenor) //Destinatário pessoa jurídica
+        MSCBSay(15, 120, transform( aDest[nCNPJ], "@R! AA.AAA.AAA/AAAA-AA" ), "N", "A", cFontMenor) //Destinatário pessoa jurídica
     else
         MSCBSay(15, 120, transform( aDest[nCNPJ], "@R 999.999.999-99" ), "N", "A", cFontMenor) //Destinatário pessoa física
     endIf
