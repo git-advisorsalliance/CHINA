@@ -8,3 +8,4 @@ _*.PRW
 
 # Pastas de comparacao/merge manual
 merge/
+/.vscode
