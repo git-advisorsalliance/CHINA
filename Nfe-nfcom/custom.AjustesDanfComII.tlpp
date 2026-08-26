@@ -80,9 +80,9 @@ User Function ImpItPart(oPrinter	AS Object	;
 	oQry:openAlias(@ucQry)	//oQry:getFixQuery() retorna query processada
 	If (ucQry)->D2_BRICMS > 0
 		nLinha	+= 15	//-- Compensa o espaço
-		oPrinter:SayAlign(nLinha, nPosBcIcm, Alltrim(Transform((cAlias)->D2_BRICMS , "@e 9,999,999,999,999.99")), oFonte, 100, 10, , 0)
-		oPrinter:SayAlign(nLinha, nPosICMS , Alltrim(Transform((cAlias)->D2_ICMSRET, "@e 9,999,999,999,999.99")), oFonte, 100, 10, , 0)
-		oPrinter:SayAlign(nLinha, nPosAliq , Alltrim(Transform((cAlias)->D2_ALIQSOL, "@e 999.99")), oFonte, 100, 10, , 0)
+		oPrinter:SayAlign(nLinha, nPosBcIcm, Alltrim(Transform((ucQry)->D2_BRICMS , "@e 9,999,999,999,999.99")), oFonte, 100, 10, , 0)
+		oPrinter:SayAlign(nLinha, nPosICMS , Alltrim(Transform((ucQry)->D2_ICMSRET, "@e 9,999,999,999,999.99")), oFonte, 100, 10, , 0)
+		oPrinter:SayAlign(nLinha, nPosAliq , Alltrim(Transform((ucQry)->D2_ALIQSOL, "@e 999.99")), oFonte, 100, 10, , 0)
 		nLinha	+= 40
 	EndIf
 	(ucQry)->(dbCloseArea()) //-- Fecha a query
