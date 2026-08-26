@@ -1,0 +1,294 @@
+#Define _NAMESPACE_		custom.AjustesDanfComII							//-- FEITO ASSIM PARA PODER UTILIZAR O NAMESPACE
+
+#include 'tlpp-core.th'
+#include 'totvs.ch'
+#include 'fwmvcdef.ch'
+
+//-------------------------------------------------------------------------------------------------
+/*/{Protheus.doc} custom.AjustesDanfComII
+@description	Conjunto de funções para ajustar a impressão do DanfeCOM, para minimizar as alterações
+					no fonte padrão
+@autor			Cirilo Rocha
+@since			20/08/2026
+-------------------------------------------------------------------------------------------------*/
+
+#DEFINE _NomeProg_		UpStrTran(RetFileName(ProcSource()),'CUSTOM.','')
+#DEFINE _LINHA_			StrZero(ProcLine(),5)
+#DEFINE _MsgLinha_		_NomeProg_+'('+_LINHA_+')'
+
+//-- Facilitadores para uso de NameSpaces!
+#IFDEF _NAMESPACE_
+	#Define _CNAMESPACE_	\'_NAMESPACE_.\'						//-- PARA CRIAR O P.E. MVC
+	#Define _CNS_LOAD_		\'_NAMESPACE_.QUALQUERCOISA\'			//-- NÃO ENTENDO PORQUE PRECISA TER ALGUM SUFIXO PARA FUNCIONAR!!!
+	NAMESPACE	_NAMESPACE_
+#ENDIF
+
+
+//------------------------------------------------------------------------------------------------
+/*/{Protheus.doc} custom.AjustesDanfComII.U_ImpItPart
+Metodo p/ Imprimir linha quando possui Partilha de Impostos - Não Medidos
+@author Marcos Cavalaro (MAC)
+@since 17/12/2025
+-------------------------------------------------------------------------------------------------*/
+User Function ImpItPart(oPrinter	AS Object	;
+					,	oNF			AS Object	;
+					,	oFonte		AS Object	;
+					,	oItem		AS Object	;
+					,	nLinha		AS Numeric	;
+					,	nPosBcIcm	AS Numeric	;
+					,	nPosICMS	AS Numeric	;
+					,	nPosAliq	AS Numeric	;
+					)
+
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local cQuery	:= ''							AS Character
+	Local nP		:= 1							AS Numeric
+	Local oQry										AS Object
+	Local ucQry										AS Variant
+
+	//-- Parâmetros da Rotina -------------------------------------------------
+	ParamType 0		VAR oPrinter	AS Object		//-- OBRIGATÓRIO
+	ParamType 1		VAR oNF			AS Object		//-- OBRIGATÓRIO
+	ParamType 2		VAR oFonte		AS Object		//-- OBRIGATÓRIO
+	ParamType 3		VAR oItem		AS Object		//-- OBRIGATÓRIO
+	ParamType 4		VAR nLinha		AS Numeric		//-- OBRIGATÓRIO
+	ParamType 5		VAR nPosBcIcm	AS Numeric		//-- OBRIGATÓRIO
+	ParamType 6		VAR nPosICMS	AS Numeric		//-- OBRIGATÓRIO
+	ParamType 7		VAR nPosAliq	AS Numeric		//-- OBRIGATÓRIO
+
+	//-------------------------------------------------------------------------
+	If oQry == NIL
+		BeginContent Var cQuery AS SQL
+
+		SELECT SD2.D2_BRICMS, SD2.D2_ICMSRET, SD2.D2_ALIQSOL 
+		FROM %Exp:RetSqlName("SD2")% SD2 
+		WHERE SD2.D_E_L_E_T_ <> '*' 
+			AND SD2.D2_FILIAL	= ? 
+			AND SD2.D2_DOC		= ? 
+			AND SD2.D2_SERIE	= ? 
+			AND SD2.D2_ITEM		= ?  
+
+		EndContent
+		oQry	:= FwExecStatement():new( ChangeQuery(cQuery) )
+	EndIf
+
+	nP	:= 1
+	oQry:setString	(nP++, FwXFilial('SD2') )
+	oQry:setString	(nP++, StrZero(Val(oNF:_infNFCom:_ide:_NNf:Text),9) )
+	oQry:setString	(nP++, Padr(oNF:_infNFCom:_ide:_Serie:Text,FwTamSx3("D2_SERIE")[1]) )
+	oQry:setString	(nP++, StrZero(Val(oItem:_nItem:Text),2) )
+	oQry:openAlias(@ucQry)	//oQry:getFixQuery() retorna query processada
+	If (ucQry)->D2_BRICMS > 0
+		nLinha	+= 15	//-- Compensa o espaço
+		oPrinter:SayAlign(nLinha, nPosBcIcm, Alltrim(Transform((cAlias)->D2_BRICMS , "@e 9,999,999,999,999.99")), oFonte, 100, 10, , 0)
+		oPrinter:SayAlign(nLinha, nPosICMS , Alltrim(Transform((cAlias)->D2_ICMSRET, "@e 9,999,999,999,999.99")), oFonte, 100, 10, , 0)
+		oPrinter:SayAlign(nLinha, nPosAliq , Alltrim(Transform((cAlias)->D2_ALIQSOL, "@e 999.99")), oFonte, 100, 10, , 0)
+		nLinha	+= 40
+	EndIf
+	(ucQry)->(dbCloseArea()) //-- Fecha a query
+	oQry:destroy()		;		FreeObj(oQry)
+
+return nLinha
+
+
+
+
+//-------------------------------------------------------------------------------------------------
+/*/{Protheus.doc} custom.AjustesDanfComII.U_ProcAjustes
+@description	Faz os ajustes nos dados da NF para impressão diretamente nas Tags
+@autor			Cirilo Rocha
+@since			20/08/2026
+-------------------------------------------------------------------------------------------------*/
+User Function ProcAjustes(aNfcomObjects	AS Array)
+
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local nPNota									AS Numeric
+	Local cNumNota									AS Character
+	Local cSerNota									AS Character
+	Local oIDE										AS Object
+	Local oFatura									AS Object
+
+	//-- Parâmetros da Rotina -------------------------------------------------
+	ParamType 0		VAR aNfcomObjects		AS Array		//-- OBRIGATÓRIO
+
+	//-------------------------------------------------------------------------
+	For nPNota := 1 to Len(aNfcomObjects)
+		oIDE	:= aNfcomObjects[nPNota]:_NFCom:_infNFCom:_IDE			//-- Só para simplificar o acesso aos campos
+		cNumNota:= StrZero(Val(oIDE:_nNF:Text),9)
+		cSerNota:= Padr(oIDE:_serie:Text,FwTamSx3("F2_SERIE")[1])
+
+		//--------------------------------------------------------------------------------------//
+		//-- MANUTENÇÕES DIRETAMENTE NAS TAGS, ASSIM EU EVITO DE TER QUE ALTERAR O FONTE PADRÃO,//
+		//		E ASSIM, CENTRALIZO AS MANUTENÇÕES NESSE FONTE                                  //
+		//--------------------------------------------------------------------------------------//
+
+		//-- Ajusta a Base e o Valor do ICMS quando houver Partilha de Impostos
+		sfImpPartilha(aNfcomObjects[nPNota],cNumNota,cSerNota)
+
+		//-- Ajusta a Descrição do Produto quando houver Complemento de Descrição
+		sfComplemtaDescricao(aNfcomObjects[nPNota],cNumNota,cSerNota)
+
+		//-- Máscara no CNPJ do Emititente
+		aNfcomObjects[nPNota]:_NFCom:_infNFCom:_Emit:_CNPJ:Text	:= Transf(aNfcomObjects[nPNota]:_NFCom:_infNFCom:_Emit:_CNPJ:Text,'@!R NN.NNN.NNN/NNNN-99')
+
+		//-- Ajustes na Fatura
+		oFatura	:= XmlChildEx(aNfcomObjects[nPNota]:_NFCom:_infNFCom,'_GFAT')
+		If oFatura <> NIL			
+			oFatura:_codDebAuto:TEXT := ' '		//-- Limpa o código do débito automático
+			
+			//-- Máscara na competência da fatura
+			If XmlChildEx(oFatura,'_COMPETFAT') <> NIL
+				oFatura:_CompetFat:TEXT := Transf(oFatura:_CompetFat:TEXT,'@R 9999/99')
+			EndIf
+		EndIf		
+
+	Next nPNota
+
+Return
+
+
+
+
+//-------------------------------------------------------------------------------------------------
+/*/{Protheus.doc} sfImpPartilha
+@description	Soma imposto partilha na base e no Valor do ICMS - (Partilha)
+@author 		Marcos Cavalaro (MAC)
+@since			15/12/2025
+@obs			Manipula diretamente no objeto para simplificar as manutenções no fonte padrão (CIRILO ROCHA)
+-------------------------------------------------------------------------------------------------*/
+Static Function sfImpPartilha(	oNF			AS Object	;
+							,	cNumNota	AS Character;
+							,	cSerNota	AS Character;
+							)
+
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local cQuery	:= ''							AS Character
+	Local nP		:= 1							AS Numeric
+	Local oQry										AS Object
+	Local ucQry										AS Variant
+
+	Local nVlrTmp									AS Numeric
+	Local oICMS										AS Object
+
+	//-- Parâmetros da Rotina -------------------------------------------------
+	ParamType 0		VAR oNF			AS Object			//-- OBRIGATÓRIO
+	ParamType 1		VAR cNumNota	AS Character		//-- OBRIGATÓRIO
+	ParamType 2		VAR cSerNota	AS Character		//-- OBRIGATÓRIO
+	
+	//-------------------------------------------------------------------------
+	oICMS	:= oNF:_NFCom:_infNFCom:_Total:_ICMSTOT	//-- Só para simplificar o acesso aos campos
+
+	If oQry == NIL
+		BeginContent Var cQuery AS SQL
+
+		SELECT SF2.F2_BRICMS, SF2.F2_ICMSRET
+		FROM %Exp:RetSqlName("SF2")% SF2 
+		WHERE SF2.D_E_L_E_T_ <> '*' 
+			AND SF2.F2_FILIAL	= ?
+			AND SF2.F2_DOC		= ? 
+			AND SF2.F2_SERIE	= ? 
+
+		EndContent
+		oQry	:= FwExecStatement():new( ChangeQuery(cQuery) )
+	EndIf
+
+	nP	:= 1
+	oQry:setString	(nP++,FwXFilial('SF2'))
+	oQry:setString	(nP++,cNumNota)
+	oQry:setString	(nP++,cSerNota)
+	oQry:openAlias(@ucQry)	//oQry:getFixQuery() retorna query processada
+	If (ucQry)->(!EoF())
+		//-- Base do ICMS
+		nVlrTmp	:= Val(oICMS:_vBC:TEXT)
+		nVlrTmp	+= (ucQry)->F2_BRICMS
+		oICMS:_vBC:TEXT	:= LTrim( Str(nVlrTmp) )
+
+		//-- Valor do ICMS
+		nVlrTmp	:= Val(oICMS:_vICMS:TEXT)
+		nVlrTmp	+= (ucQry)->F2_ICMSRET
+		oICMS:_vICMS:TEXT	:= LTrim( Str(nVlrTmp) )
+	EndIf
+	(ucQry)->(dbCloseArea()) //-- Fecha a query
+	oQry:destroy()		;		FreeObj(oQry)
+
+Return
+
+
+
+//-------------------------------------------------------------------------------------------------
+/*/{Protheus.doc} sfComplemtaDescricao
+@description	Complemento da Descrição.
+@author 		Marcos Cavalaro (MAC)
+@since			20/08/2026
+-------------------------------------------------------------------------------------------------*/
+Static Function sfComplemtaDescricao(oNF		AS Object	;
+									,cNumNota	AS Character;
+									,cSerNota	AS Character;
+									)
+
+	//-- Declaração de Variáveis ----------------------------------------------
+	Local aItens									AS Array
+	Local cDescProd									AS Character
+	Local nIt										AS Numeric
+	Local oDet										AS Variant
+
+	Local cQuery	:= ''							AS Character
+	Local nP		:= 1							AS Numeric
+	Local oQry										AS Object
+	Local ucQry										AS Variant
+
+	//-- Parâmetros da Rotina -------------------------------------------------
+	ParamType 0		VAR oNF			AS Object			//-- OBRIGATÓRIO
+	ParamType 1		VAR cNumNota	AS Character		//-- OBRIGATÓRIO
+	ParamType 2		VAR cSerNota	AS Character		//-- OBRIGATÓRIO
+
+	//-------------------------------------------------------------------------
+	oDet	:= oNF:_NFCom:_infNFCom:_Det
+	If ( ValType(oDet) == 'O' )
+		aItens := {oDet}
+	Else
+		aItens := oDet
+	EndIf
+
+	If oQry == NIL
+		BeginContent Var cQuery AS SQL
+
+		SELECT SC6.C6_P_DESI, SC6.C6_P_CAP
+		FROM %Exp:RetSqlName("SC6")% SC6 
+		WHERE SC6.D_E_L_E_T_ <> '*' 
+			AND SC6.C6_FILIAL	= ? 
+			AND SC6.C6_NOTA		= ? 
+			AND SC6.C6_SERIE	= ? 
+			AND SC6.C6_ITEM		= ? 
+
+		EndContent
+		oQry	:= FwExecStatement():new( ChangeQuery(cQuery) )
+	EndIf
+
+	For nIt := 1 to Len(aItens)
+
+		nP	:= 1
+		oQry:setString	(nP++,FWxFilial('SC6'))
+		oQry:setString	(nP++,cNumNota)
+		oQry:setString	(nP++,cSerNota)
+		oQry:setString	(nP++,StrZero(Val(aItens[nIt]:_nItem:Text),2))
+		oQry:openAlias(@ucQry)	//oQry:getFixQuery() retorna query processada
+		
+		// Verifica se o XML esta com a Descricao Correta CTB - MAC 17.12.2025
+		cDescProd	:= AllTrim(aItens[nIt]:_PROD:_XPROD:TEXT)
+
+		If .Not. ( AllTrim( (ucQry)->C6_P_DESI ) $ cDescProd )
+			cDescProd += " - "+AllTrim( (ucQry)->C6_P_DESI )
+			
+			If .Not. Empty( (ucQry)->C6_P_CAP )
+				cDescProd += " - "+Alltrim( (ucQry)->C6_P_CAP )
+			EndIf
+			
+			aItens[nIt]:_PROD:_XPROD:TEXT	:= cDescProd
+		EndIf	
+
+		(ucQry)->(dbCloseArea()) //-- Fecha a query
+	Next nIt
+	oQry:destroy()		;		FreeObj(oQry)
+
+Return

@@ -1,3 +1,14 @@
+/*========+===============+======+=================================================================
+   Data   | Responsável   |Ticket| Manutenção Efetuada
+==========+===============+======+=================================================================
+20/08/2026| Cirilo Rocha  |      | Versão atual 22/jul/2026 - COM CUSTOMIZAÇÕES
+          |               |      | Centralizadas as manutenções possível no fonte custom.AjustesDanfComII.tlpp
+          |               |      | 
+==========+===============+======+===============================================================*/
+
+//#################################################################################################
+//#################################################################################################
+
 #INCLUDE "PROTHEUS.CH"
 #INCLUDE "TBICONN.CH"
 #INCLUDE "COLORS.CH"
@@ -135,7 +146,11 @@ Method New(cPathPDF, cFilePrint, nDevice, lBuffer) CLASS PrtDanfeCom
 	Self:MAXONLYMSG := 40
 	Self:nTotItsPag := 15
 
-	Self:oPrinter := FWMSPrinter():New(Self:cFilePrint, Self:nDevice /*,.F., Self:cPathPDF, .T.,,,,,,,,,,lBuffer*/)
+	//-- MODIFICAÇÃO --//
+//	Self:oPrinter := FWMSPrinter():New(Self:cFilePrint, Self:nDevice /*,.F., Self:cPathPDF, .T.,,,,,,,,,,lBuffer*/)
+	Self:oPrinter := FWMSPrinter():New(Self:cFilePrint, Self:nDevice,,Self:cPathPDF,.T.,,,,.T.,,,.F.,,,lBuffer)
+	//----------------//
+
 	Self:ConfigurePrinter()
 Return Self
 
@@ -238,6 +253,11 @@ Method ValidateXML(aXmlNfcom) CLASS PrtDanfeCom
 		aXML := fwfreearray(aXML)
 
 	Next nX
+
+	//-- MODIFICAÇÃO --//
+	//-- Ajustes diretamente nas Tags do XML
+	custom.AjustesDanfComII.U_ProcAjustes(aNfcomObjects)
+	//-----------------//
 
 Return aNfcomObjects
 
@@ -505,7 +525,11 @@ Method SetAssinante(oAssinante, oFatura) CLASS PrtDanfeCom
 		cDataFim := ConvDate(oFatura:_dPerUsoFim:TEXT)
 	EndIf
 
-	Self:oPrinter:Say(580, 1250, "PERÍODO INICIAL: " + AllTrim(cDataIni) + " / " + "PERIODO FINAL: " + AllTrim(cDataFim),Self:oFont14N:oFont)
+	//-- MODIFICAÇÃO --//
+	// Alterado conforme Solicitado Marcio CHINA - 10.03.2026
+//	Self:oPrinter:Say(580, 1250, "PERÍODO INICIAL: " + AllTrim(cDataIni) + " / " + "PERIODO FINAL: " + AllTrim(cDataFim),Self:oFont14N:oFont)
+	Self:oPrinter:Say(580, 1250, "PERÍODO CONF. DESCRITO NO ITEM DA FATURA",Self:oFont14N:oFont)
+	//----------------//
 
 	Self:oPrinter:Box(610, 1210, 670, 2450)
 
@@ -814,6 +838,19 @@ Method SetItens(nItemInicial,nTotalItens) CLASS PrtDanfeCom
 	For nI := nItemInicial To nItemFinal
 		Self:impIt(oDet[nI], nNroLinhatem, nPosItem, nPosUni, nPosQuant, nPosUnit, nPosTotal, nPosBcIcm, nPosICMS, nPosAliq, nPosPis, Self:ProcessItems(oDet[nI], oNF)) //Imprime linha de item
 		nNroLinhatem += 25
+		
+		//-- MODIFICAÇÃO --//
+		//-- Imprime linha de Partilha Imposto
+		nNroLinhatem := custom.AjustesDanfComII.U_ImpItPart(Self:oPrinter		;
+														,	oNF					;
+														,	Self:oFont10:oFont	;	//-- Mesma fonte usada no impIt()
+														,	oDet[nI]			;
+														,	nNroLinhatem		;
+														,	nPosBcIcm			;
+														,	nPosICMS			;
+														,	nPosAliq			;
+														)
+		//-----------------//
 	Next
 
 Return nItemFinal
@@ -1073,6 +1110,11 @@ User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
     Default nTipo		:= 0
 
 	oDanfcom    := PrtDanfeCom():New(cPathPDF, cFilePrint, nDevice, lBuffer)
+	//-- MODIFICAÇÃO --//
+	If FWIsInCallStack('U_CHTNT003') //-- Veio da rotina de impressão em Lote
+		oDanfcom:oPrinter:nModalResult := 1
+	EndIf
+	//----------------//
 
 	If oDanfcom:oPrinter:NMODALRESULT == 1 // Se o usuário cancelar a impressão
 		aAdd(aPergs, {1, "NFCom De"			, cdeNfcom	,  ""							, ".T.", "", ".T.", 80,  .F.})
@@ -1082,11 +1124,22 @@ User Function DANFCOMPrc( lEnd, cIdEnt, cAmbiente )
 		aAdd(aPergs, {1, "Data De"			, dDataDe	,  ""							, ".T.", "", ".T.", 80,  .T.})
 		aAdd(aPergs, {1, "Data Até"			, dDataAte	,  ""							, ".T.", "", ".T.", 80,  .T.})
 
-		ParamBox( aPergs, "Parâmetros" )
-		
-		MV_PAR01 := AllTrim(MV_PAR01)
-		MV_PAR02 := AllTrim(MV_PAR02)
-		MV_PAR04 := Val(MV_PAR04)
+		//-- MODIFICAÇÃO --//
+		If FWIsInCallStack('U_CHTNT003') //-- Veio da rotina de impressão em Lote
+			MV_PAR01 := SF2->F2_DOC
+			MV_PAR02 := SF2->F2_DOC
+			MV_PAR03 := SF2->F2_SERIE	
+			MV_PAR04 := 1
+			MV_PAR05 := SF2->F2_EMISSAO 	
+			MV_PAR06 := SF2->F2_EMISSAO 	
+		Else
+			ParamBox( aPergs, "Parâmetros" )
+			
+			MV_PAR01 := AllTrim(MV_PAR01)
+			MV_PAR02 := AllTrim(MV_PAR02)
+			MV_PAR04 := Val(MV_PAR04)
+		EndIf
+		//---------------//
 
 		If !lImpDir .or. MV_PAR04 == 0 // Caso impressão de DANFCOM seja realizada via AutoDistMail 
 			dbSelectArea("SF3")

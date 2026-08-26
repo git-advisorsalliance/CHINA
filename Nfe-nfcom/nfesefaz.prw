@@ -1503,6 +1503,21 @@ User Function XmlNfeSef(cTipo,cSerie,cNota,cClieFor,cLoja,cNotaOri,cSerieOri)
 									aadd(aReboqu2,Iif(DA3->(FieldPos("DA3_RNTC")) > 0 ,DA3->DA3_RNTC,"")) //RNTC
 
 								EndIf
+								///////////////////////////////////////////// MODIFICACAO ////////////////////////////////////////////////////
+								Private _aReboqu3	AS Array
+								_aReboqu3	:= {}							
+								If !Empty(SF2->F2_YVEICU4)
+
+									dbSelectArea("DA3")
+									dbSetOrder(1)
+									MsSeek(xFilial("DA3")+SF2->F2_YVEICU4)
+
+									aadd(_aReboqu3,DA3->DA3_PLACA)
+									aadd(_aReboqu3,DA3->DA3_ESTPLA)
+									aadd(_aReboqu3,Iif(DA3->(FieldPos("DA3_RNTC")) > 0 ,DA3->DA3_RNTC,"")) //RNTC
+								
+								EndIf
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////																											  																																								   
 							EndIf
 						ElseIf lNfCup
 							SL1->(dbSetOrder(2))

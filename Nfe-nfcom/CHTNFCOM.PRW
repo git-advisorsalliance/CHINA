@@ -1,9 +1,13 @@
-#INCLUDE "PROTHEUS.CH"
+#include 'totvs.ch'
+#include 'fwmvcdef.ch'
 #INCLUDE "TBICONN.CH"
 #INCLUDE "COLORS.CH"
 #INCLUDE "RPTDEF.CH"
 #INCLUDE "FWPrintSetup.ch"
 #INCLUDE "danfcom.ch"
+
+//-- IMPRESSÃO FOI UNIFICADA NA FUNÇÃO DANFCOMII
+//-- PODE SER EXCLUÍDO NO FUTURO SE NÃO HOUVEREM OUTRAS CHAMADAS A ROTINA ATUAL
 
 static oQry	:= nil
 
@@ -522,8 +526,11 @@ Method SetAssinante(oAssinante, oFatura) CLASS PrtNFCom
 		cDataFim := ConvDate(oFatura:_dPerUsoFim:TEXT)
 	EndIf
 
-	Self:oPrinter:Say(580, 1250, "PERÍODO INICIAL: " + AllTrim(cDataIni) + " / " + "PERIODO FINAL: " + AllTrim(cDataFim),Self:oFont14N:oFont)
-
+	//-- MODIFICAÇÃO --//
+	Self:oPrinter:Say(580, 1250, "PERIODO CONF. DESCRITO NO ITEM DA FATURA",Self:oFont14N:oFont)
+//	Self:oPrinter:Say(580, 1250, "PERÍODO INICIAL: " + AllTrim(cDataIni) + " / " + "PERIODO FINAL: " + AllTrim(cDataFim),Self:oFont14N:oFont)
+	//----------------//
+	
 	Self:oPrinter:Box(610, 1210, 670, 2450)
 
 	If Type("oFatura:_codDebAuto") <> "U"
@@ -1151,6 +1158,11 @@ User Function CHTNFCOM( lEnd, cIdEnt, cAmbiente )
    Default lIsLoja	:= .F.
    Default nTipo		:= 0
 
+	//-- TODAS AS CUSTOMIZAÇÕES FORAM CENTRALIZADAS NO FONTE PRINCIPAL DANFCOMII, 
+	//ESTOU REDIRECIONANDO PARA O FONTE PRINCIPAL
+	U_DANFCOMPrc( lEnd , cIdEnt , cAmbiente )
+	Return cFilePrint
+
 	oDanfcom    := PrtNFCom():New(cPathPDF, cFilePrint, nDevice, lBuffer)
 
 	// If oDanfcom:oPrinter:NMODALRESULT == 1 // Se o usuário cancelar a impressão
@@ -1504,4 +1516,4 @@ Static Function MaxCod(cString, nTamanho)
 		EndIf
 	Next
 
-	Return nMax
+Return nMax
