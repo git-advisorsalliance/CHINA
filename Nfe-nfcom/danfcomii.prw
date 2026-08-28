@@ -462,7 +462,10 @@ Method SetDest(oDestino, oIdent) CLASS PrtDanfeCom
 						Self:oPrinter:Say(1050,040, cAux,Self:oFont14N:oFont)
 
 						cAux := aDest[01] + " - " + aDest[02] + ", " + aDest[05] + " - " + aDest[07] + ", CEP: " + aDest[03]
-						aLinesEnd := WrapText( cAux, 54)
+						//-- MODIFICAÇÃO --//
+//						aLinesEnd := WrapText( cAux, 54)
+						aLinesEnd := WrapText( cAux, 40)
+						//-----------------//
 
 						For nI := 1 To Min(Len(aLinesEnd), 3)
 							Self:oPrinter:Say(nLinhaY, 060, aLinesEnd[nI], Self:oFont14N:oFont)
