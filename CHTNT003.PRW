@@ -199,6 +199,9 @@ Static Function Imprime( lPreview )
 	Private nVias		:= 1
 	Private lIsLoja		:= .F.
 	Private nTipo		:= 0
+	Private _lPreview	:= lPreview					AS Logical
+	Private _lImpAuto	:= .T.						AS Logical 		//-- Força a impressão automática do PDF, sem exibir a tela de configuração da impressora.
+	Private cLocal		:= cPathPDF					AS Character	//-- Local de impressão dos boletos
 
 	If !MsgYesNo( 'Confirma geração dos documentos?' )
 		Return
@@ -223,7 +226,7 @@ Static Function Imprime( lPreview )
 				U_DANFCOMPrc( .F. , cIdEnt , cAmbiente )		//-- Imprime NFCom usando o RDMake do sistema
 		
 				aAdd( aDados, SF2->F2_CLIENTE + SF2->F2_LOJA )
-				aAdd( aAnexo, cPathPDF+cFilePrint )
+				aAdd( aAnexo, cPathPDF+cFilePrint+'.pdf' )
 
 				// Imprime NFCom
 				// cAnexo := ImpFat( lPreview )
@@ -248,8 +251,6 @@ Static Function Imprime( lPreview )
 				//cAnexo += U_CHTNT002( .T. , lPreview )
 				cAnexo:= U_CHTNT005( .T. , lPreview )		//-- IMPRESSÃO DO BOLETO
 
-				cAnexo:= "\SPOOL\"+cAnexo
-
 				aAdd(aAnexo,cAnexo)
 
 			EndIf
@@ -257,7 +258,7 @@ Static Function Imprime( lPreview )
 			Sleep( 500 )
 
 			//If !Empty( cAnexo ) .And. !lPreview
-			If len(aAnexo) .And. !lPreview
+			If len(aAnexo) > 0 .And. !lPreview
 				SA1->( DbSetOrder( 1 ) , DbSeek( xFilial( 'SA1' ) + SF2->F2_CLIENTE + SF2->F2_LOJA ) )
 
 				// Alterado o campo do Email. De A1_EMAIL p/ A1_XEMAILF.
@@ -817,7 +818,7 @@ Static Function ImpND( lPreview )
 
 	cPedido := SD2->D2_PEDIDO
 
-	oPrinter:= FWMSPrinter():New(cNomeArq,IMP_PDF,.F.,,.T.,.F.,,,,,,lPreview,0)
+	oPrinter:= FWMSPrinter():New(cNomeArq,IMP_PDF,.F.,,.T.,.F.,,,IsFileServer(cLocal),,,lPreview,0)
 
 
 	/*
@@ -827,8 +828,14 @@ Static Function ImpND( lPreview )
 	oPrinter:SetPortrait()
 	oPrinter:SetPaperSize(DMPAPER_A4)
 	oPrinter:SetMargin(70,70,70,70)
-	oPrinter:cPathPDF := cDirBol // cLocal
+	
+	If oPrinter:nDevice == IMP_PDF
+		If  .Not. oPrinter:getViewPDF()	;	//-- NÃO É POSSÍVEL GERAR PREVIEW E PDF NO SERVIDOR, UM OU OUTRO
+		.Or. .Not. oPrinter:lServer		;
 
+			oPrinter:cPathPDF	:= cLocal
+		EndIf
+	EndIf
 
 	ImpDoc( @nLin )
 
@@ -853,7 +860,7 @@ Static Function ImpND( lPreview )
 		*/
 	EndIf
 
-Return( cFile )
+Return( cLocal+cNomeArq+".pdf" )
 
 
 

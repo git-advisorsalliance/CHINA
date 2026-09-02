@@ -19,12 +19,12 @@ Empresa		: China Telecom
 USER FUNCTION CHTNT005(lSelAuto,lPreview)   
 *-----------------------------------------*
 
-LOCAL aCampos      	:= {{"E1_NOMCLI","Cliente","@!"},{"E1_PREFIXO","Prefixo","@!"},{"E1_NUM","Titulo","@!"},;
-						{"E1_PARCELA","Parcela","@!"},{"E1_VALOR","Valor","@E 9,999,999.99"},{"E1_VENCREA","Vencimento"}}
+//LOCAL aCampos      	:= {{"E1_NOMCLI","Cliente","@!"},{"E1_PREFIXO","Prefixo","@!"},{"E1_NUM","Titulo","@!"},;
+//						{"E1_PARCELA","Parcela","@!"},{"E1_VALOR","Valor","@E 9,999,999.99"},{"E1_VENCREA","Vencimento"}}
 LOCAL	aPergs 		:= {}
 LOCAL lExec         := .T.
-LOCAL nOpc         	:= 0
-LOCAL aDesc        	:= {"Este programa imprime os boletos de","cobranca bancaria de acordo com","os parametros informados"}
+//LOCAL nOpc         	:= 0
+//LOCAL aDesc        	:= {"Este programa imprime os boletos de","cobranca bancaria de acordo com","os parametros informados"}
 Local cFileRet		:= ""
 PRIVATE Exec       	:= .F.
 PRIVATE cIndexName 	:= ''
@@ -186,7 +186,7 @@ Return( cFileRet )
 STATIC FUNCTION MontaRel(lSelAuto,lPreview)
 LOCAL oPrint
 LOCAL n			:= 0
-LOCAL nI     	:= 0
+//LOCAL nI     	:= 0
 LOCAL aBitmap   := {	"",;			                                                            // Banner Publicitario
 						"LGRLFA.bmp"}		                                                            // Logo da Empresa
 						LOCAL aDadosEmp := {SM0->M0_NOMECOM,;										//[1]Nome da Empresa
@@ -208,10 +208,10 @@ LOCAL aBolText  := {"ApÛs o vencimento cobrar multa de R$ ",;
 LOCAL aBMP      := aBitMap
 LOCAL i         := 1
 LOCAL CB_RN_NN  := {}
-LOCAL nRec      := 0
+//LOCAL nRec      := 0
 LOCAL _nVlrAbat := 0
 //Local cLocal      := GetTempPath()
-Local cFileName,cEmail,cSubject
+Local cFileName//,cEmail,cSubject
 Local cFile := ""
 Local cDirBol 	  := "\FTP\" + cEmpAnt
 
@@ -222,7 +222,7 @@ Private cCodEmp		:= ""
 Private aCols		:={}
 Private aAuxAcols	:={}
 Private nTipoBol    := 0
-Private nTipoBol    := 0
+
 //RSB - 08/06/2017 - Impress„o dos boletos na maquina do usu·rio.
 If Type("cLocal") <> "C" 
 	cLocal := GetTempPath()	                     	
@@ -278,6 +278,15 @@ ProcRegua(SQL->(RecCount()))
 SQL->(dbGoTop())
 
 cFileName := "Boleto_" + ALLTRIM( SE1->E1_PREFIXO ) + ALLTRIM( SE1->E1_NUM ) + ALLTRIM( SE1->E1_PARCELA )
+// Alterado cLocal p/ cDirBol MAC 24.1.25
+
+If File( cLocal+cFileName+".pdf" )
+	FErase(cLocal+cFileName+".pdf")
+EndIf
+
+If File( cLocal+cFileName + '.rel' )
+	FErase( cLocal+cFileName + '.rel' )
+EndIf
 
 if !lSelAuto
 	oPrint:= FWMSPrinter():New(cFileName,IMP_PDF,.T./*.F.*/,,.T.,.F.,,,,,,.T.,0)
@@ -285,17 +294,20 @@ if !lSelAuto
 	oPrint:SetPortrait()			// ou SetLandscape()
 	oPrint:SetPaperSize(9)			// Seta para papel A4
 else
-		If !lPreview
-			oPrint:= FWMSPrinter():New(cFileName,IMP_PDF,.T./*.F.*/,,.T.,.F.,,,,,,.F.,0)
-		Else
-			oPrint:= FWMSPrinter():New(cFileName,IMP_PDF,.T./*F.*/,,.T.,.F.,,,,,,.T.,0)
-		EndIf
+	oPrint:= FWMSPrinter():New(cFileName,IMP_PDF,.T./*.F.*/,,.T.,.F.,,,IsFileServer(cLocal),,,lPreview,0)
+	oPrint:SetResolution(72)
+	oPrint:SetPortrait()			// ou SetLandscape()
+	oPrint:nDevice := IMP_PDF
 	
-	   	oPrint:SetResolution(72)
-		oPrint:SetPortrait()			// ou SetLandscape()
-		oPrint:nDevice := IMP_PDF
-		oPrint:cPathPDF := cLocal // cDirBol  // cLocal 		
-		oPrint:SetPaperSize(DMPAPER_A4) 				// Seta para papel A4
+	If oPrint:nDevice == IMP_PDF
+		If  .Not. oPrint:getViewPDF();	//-- N√O … POSSÕVEL GERAR PREVIEW E PDF NO SERVIDOR, UM OU OUTRO
+		.Or. .Not. oPrint:lServer	;
+
+			oPrint:cPathPDF	:= cLocal
+		EndIf
+	EndIf
+
+	oPrint:SetPaperSize(DMPAPER_A4) 				// Seta para papel A4
 endif
 
 SQL->(dbGoTop())
@@ -382,16 +394,6 @@ ENDDO
 //oPrint:EndPage()	// Finaliza a Pagina.
 //oPrint:Preview()	// Visualiza antes de Imprimir.
 
-// Alterado cLocal p/ cDirBol MAC 24.1.25
-
-If File( cLocal+cFileName+".pdf" )
-	FErase(cLocal+cFileName+".pdf")
-EndIf                    
-
-If File( cLocal+cFileName + '.rel' )
-	FErase( cLocal+cFileName + '.rel' )
-EndIf
-
 cFile := ""
 If lPreview
 	oPrint:Preview()
@@ -415,7 +417,7 @@ SQL->(DbCloseArea())
 
 //  RETURN( cFile ) MAC
 
-RETURN( cFileName+".pdf" )
+RETURN( cLocal+cFileName+".pdf" )
 
 /*/
 ‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹
@@ -441,14 +443,14 @@ LOCAL oFont14n
 LOCAL oFont24
 LOCAL i        := 0
 LOCAL _nLin    := 0//200
-LOCAL aCoords1 := {0150,1900,0550,2300}
-LOCAL aCoords2 := {0450,1050,0550,1900}
-LOCAL aCoords3 := {_nLin+0710,1900,_nLin+0810,2300}
-LOCAL aCoords4 := {_nLin+0980,1900,_nLin+1050,2300}
-LOCAL aCoords5 := {_nLin+1330,1900,_nLin+1400,2300}
-LOCAL aCoords6 := {_nLin+2000,1900,_nLin+2100,2300}
-LOCAL aCoords7 := {_nLin+2270,1900,_nLin+2340,2300}
-LOCAL aCoords8 := {_nLin+2620,1900,_nLin+2690,2300}
+//LOCAL aCoords1 := {0150,1900,0550,2300}
+//LOCAL aCoords2 := {0450,1050,0550,1900}
+//LOCAL aCoords3 := {_nLin+0710,1900,_nLin+0810,2300}
+//LOCAL aCoords4 := {_nLin+0980,1900,_nLin+1050,2300}
+//LOCAL aCoords5 := {_nLin+1330,1900,_nLin+1400,2300}
+//LOCAL aCoords6 := {_nLin+2000,1900,_nLin+2100,2300}
+//LOCAL aCoords7 := {_nLin+2270,1900,_nLin+2340,2300}
+//LOCAL aCoords8 := {_nLin+2620,1900,_nLin+2690,2300}
 LOCAL oBrush
 Local nSalto   	 := 18
 LOCAL cStartPath := GetSrvProfString("STARTPATH","")//'C:\Microssiga Protheus 12\protheus_data\system\'
@@ -872,76 +874,77 @@ Return({cCB,cLD,cNroDoc})
 /*/
 Static Function AjustaSX1(cPerg, aPergs)
 
-Local _sAlias	:= Alias()
-Local aCposSX1	:= {}
-Local nX 		:= 0
-Local lAltera	:= .F.
-Local cKey		:= ""
-Local nJ		:= 0
-Local nCondicao
+	//Local _sAlias	:= Alias()
+	Local aCposSX1	:= {}
+	Local nX 		:= 0
+	Local lAltera	:= .F.
+	Local cKey		:= ""
+	Local nJ		:= 0
+	//Local nCondicao
 
-cPerg := Padr(cPerg,10)
+	cPerg := Padr(cPerg,10)
 
-aCposSX1:={"X1_PERGUNT","X1_PERSPA","X1_PERENG","X1_VARIAVL","X1_TIPO","X1_TAMANHO",;
-"X1_DECIMAL","X1_PRESEL","X1_GSC","X1_VALID",;
-"X1_VAR01","X1_DEF01","X1_DEFSPA1","X1_DEFENG1","X1_CNT01",;
-"X1_VAR02","X1_DEF02","X1_DEFSPA2","X1_DEFENG2","X1_CNT02",;
-"X1_VAR03","X1_DEF03","X1_DEFSPA3","X1_DEFENG3","X1_CNT03",;
-"X1_VAR04","X1_DEF04","X1_DEFSPA4","X1_DEFENG4","X1_CNT04",;
-"X1_VAR05","X1_DEF05","X1_DEFSPA5","X1_DEFENG5","X1_CNT05",;
-"X1_F3", "X1_GRPSXG", "X1_PYME","X1_HELP" }
+	aCposSX1:={"X1_PERGUNT","X1_PERSPA","X1_PERENG","X1_VARIAVL","X1_TIPO","X1_TAMANHO",;
+	"X1_DECIMAL","X1_PRESEL","X1_GSC","X1_VALID",;
+	"X1_VAR01","X1_DEF01","X1_DEFSPA1","X1_DEFENG1","X1_CNT01",;
+	"X1_VAR02","X1_DEF02","X1_DEFSPA2","X1_DEFENG2","X1_CNT02",;
+	"X1_VAR03","X1_DEF03","X1_DEFSPA3","X1_DEFENG3","X1_CNT03",;
+	"X1_VAR04","X1_DEF04","X1_DEFSPA4","X1_DEFENG4","X1_CNT04",;
+	"X1_VAR05","X1_DEF05","X1_DEFSPA5","X1_DEFENG5","X1_CNT05",;
+	"X1_F3", "X1_GRPSXG", "X1_PYME","X1_HELP" }
 
-dbSelectArea("SX1")
-dbSetOrder(1)
-For nX:=1 to Len(aPergs)
-	lAltera := .F.
-	If MsSeek(cPerg+Right(aPergs[nX][11], 2))
-		If (ValType(aPergs[nX][Len(aPergs[nx])]) = "B" .And.;
-			Eval(aPergs[nX][Len(aPergs[nx])], aPergs[nX] ))
-			aPergs[nX] := ASize(aPergs[nX], Len(aPergs[nX]) - 1)
-			lAltera := .T.
-		Endif
-	Endif
-	
-	If ! lAltera .And. Found() .And. X1_TIPO <> aPergs[nX][5]
-		lAltera := .T.		// Garanto que o tipo da pergunta esteja correto
-	Endif
-	
-	If ! Found() .Or. lAltera
-		RecLock("SX1",If(lAltera, .F., .T.))
-		Replace X1_GRUPO with cPerg
-		Replace X1_ORDEM with Right(aPergs[nX][11], 2)
-		For nj:=1 to Len(aCposSX1)
-			If 	Len(aPergs[nX]) >= nJ .And. aPergs[nX][nJ] <> Nil .And.;
-				FieldPos(AllTrim(aCposSX1[nJ])) > 0
-				Replace &(AllTrim(aCposSX1[nJ])) With aPergs[nx][nj]
+	dbSelectArea("SX1")
+	dbSetOrder(1)
+	For nX:=1 to Len(aPergs)
+		lAltera := .F.
+		If MsSeek(cPerg+Right(aPergs[nX][11], 2))
+			If (ValType(aPergs[nX][Len(aPergs[nx])]) = "B" .And.;
+				Eval(aPergs[nX][Len(aPergs[nx])], aPergs[nX] ))
+				aPergs[nX] := ASize(aPergs[nX], Len(aPergs[nX]) - 1)
+				lAltera := .T.
 			Endif
-		Next nj
-		MsUnlock()
-		cKey := "P."+AllTrim(X1_GRUPO)+AllTrim(X1_ORDEM)+"."
-		
-		If ValType(aPergs[nx][Len(aPergs[nx])]) = "A"
-			aHelpSpa := aPergs[nx][Len(aPergs[nx])]
-		Else
-			aHelpSpa := {}
 		Endif
 		
-		If ValType(aPergs[nx][Len(aPergs[nx])-1]) = "A"
-			aHelpEng := aPergs[nx][Len(aPergs[nx])-1]
-		Else
-			aHelpEng := {}
+		If ! lAltera .And. Found() .And. X1_TIPO <> aPergs[nX][5]
+			lAltera := .T.		// Garanto que o tipo da pergunta esteja correto
 		Endif
 		
-		If ValType(aPergs[nx][Len(aPergs[nx])-2]) = "A"
-			aHelpPor := aPergs[nx][Len(aPergs[nx])-2]
-		Else
-			aHelpPor := {}
+		If ! Found() .Or. lAltera
+			RecLock("SX1",If(lAltera, .F., .T.))
+			Replace X1_GRUPO with cPerg
+			Replace X1_ORDEM with Right(aPergs[nX][11], 2)
+			For nj:=1 to Len(aCposSX1)
+				If 	Len(aPergs[nX]) >= nJ .And. aPergs[nX][nJ] <> Nil .And.;
+					FieldPos(AllTrim(aCposSX1[nJ])) > 0
+					Replace &(AllTrim(aCposSX1[nJ])) With aPergs[nx][nj]
+				Endif
+			Next nj
+			MsUnlock()
+			cKey := "P."+AllTrim(X1_GRUPO)+AllTrim(X1_ORDEM)+"."
+			
+			If ValType(aPergs[nx][Len(aPergs[nx])]) = "A"
+				aHelpSpa := aPergs[nx][Len(aPergs[nx])]
+			Else
+				aHelpSpa := {}
+			Endif
+			
+			If ValType(aPergs[nx][Len(aPergs[nx])-1]) = "A"
+				aHelpEng := aPergs[nx][Len(aPergs[nx])-1]
+			Else
+				aHelpEng := {}
+			Endif
+			
+			If ValType(aPergs[nx][Len(aPergs[nx])-2]) = "A"
+				aHelpPor := aPergs[nx][Len(aPergs[nx])-2]
+			Else
+				aHelpPor := {}
+			Endif
+			
+			U_PUTHelp(cKey,aHelpPor,aHelpEng,aHelpSpa)
 		Endif
-		
-		U_PUTHelp(cKey,aHelpPor,aHelpEng,aHelpSpa)
-	Endif
-Next
+	Next
 
+Return
 /*
 FunÁ„o..........: O5NumBco
 Objetivo........: Retornar Nosso Numero 

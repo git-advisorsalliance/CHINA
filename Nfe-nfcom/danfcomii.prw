@@ -147,8 +147,13 @@ Method New(cPathPDF, cFilePrint, nDevice, lBuffer) CLASS PrtDanfeCom
 	Self:nTotItsPag := 15
 
 	//-- MODIFICAÇÃO --//
-//	Self:oPrinter := FWMSPrinter():New(Self:cFilePrint, Self:nDevice /*,.F., Self:cPathPDF, .T.,,,,,,,,,,lBuffer*/)
-	Self:oPrinter := FWMSPrinter():New(Self:cFilePrint, Self:nDevice,,Self:cPathPDF,.T.,,,,.T.,,,.F.,,,lBuffer)
+	If 	Type('_lImpAuto') == 'L'	;	//-- Rotina de impressão automatizada / lote
+	.And.	_lImpAuto				;
+		
+		Self:oPrinter := FWMSPrinter():New(Self:cFilePrint, Self:nDevice,,,.T.,,,,.T.,,,.F.,,,lBuffer)
+	Else
+		Self:oPrinter := FWMSPrinter():New(Self:cFilePrint, Self:nDevice /*,.F., Self:cPathPDF, .T.,,,,,,,,,,lBuffer*/)
+	EndIf
 	//----------------//
 
 	Self:ConfigurePrinter()
@@ -163,6 +168,20 @@ Method ConfigurePrinter() CLASS PrtDanfeCom
 	Self:oPrinter:SetMargin(60, 60, 60, 60)
 	Self:oPrinter:SetViewPDF(.T.)
 	//Self:oPrinter:Setup()
+
+	//-- MODIFICAÇÃO --//
+	If 	Type('_lPreview') == 'L'	//-- Rotina de impressão automatizada / lote
+		Self:oPrinter:SetViewPDF( _lPreview )
+	EndIf
+	If Self:oPrinter:nDevice == IMP_PDF
+		If  .Not. Self:oPrinter:getViewPDF();	//-- NÃO É POSSÍVEL GERAR PREVIEW E PDF NO SERVIDOR, UM OU OUTRO
+		.Or. .Not. Self:oPrinter:lServer	;
+
+			Self:oPrinter:cPathPDF	:= Self:cPathPDF
+		EndIf
+	EndIf
+	//-----------------//
+
 Return
 
 Method GetFonts() CLASS PrtDanfeCom
