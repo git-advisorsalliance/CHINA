@@ -1,9 +1,7 @@
 /*========+===============+======+=================================================================
    Data   | Responsável   |Ticket| Manutenção Efetuada
 ==========+===============+======+=================================================================
-26/08/2026| Cirilo Rocha  |      | Versão atual 22/jul/2026 - COM 1 CUSTOMIZAÇÃO
-          |               |      | - Contorno para o erro na tag pDevTrib (EMERGENCIAL). DEVE 
-          |               |      | 	FUNCIONAR ATÉ A TAG SER NECESSÁRIA, NESSE CASO REMOVER O CONTORNO
+26/08/2026| Cirilo Rocha  |      | Versão atual 22/jul/2026 - SEM CUSTOMIZAÇÃO
           |               |      | 
 ==========+===============+======+===============================================================*/
 
@@ -1933,10 +1931,6 @@ method printImpostoDet(nItem as integer, lCFOP as logical) as character class NF
     If self:oXmlRefTri != NIL .AND. self:oDet["det"][nItem]["imposto"]["TaxNew"] <> NIL
         //Imposto sobre bens e serviço e/ou contributos sobre bens e serviços
         cIBSCBS += self:oXmlRefTri:GetXmlIbsCbs( self:oDet["det"][nItem]["imposto"]["TaxNew"]["IdTrib"], self:oNfTciIntg )
-		//-- MODIFICAÇÃO --//
-		//-- CONTORNO EMERGENCIAL PARA RESOLVER O ERRO NA TRANSMISSÃO DE DOCUMENTOS
-		cIBSCBS	:= UpStrTran(cIBSCBS,'<pDevTrib>0.0000</pDevTrib>','')
-		//-----------------//
         cXml += cIBSCBS
     EndIf
 
